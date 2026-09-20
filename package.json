@@ -10,7 +10,8 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "sandbox": "node packages/sandbox/dist/cli.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
