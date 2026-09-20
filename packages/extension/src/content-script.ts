@@ -3,7 +3,7 @@ import { createChromeStorage, listTopics } from "./watchlist.js";
 import { extractTweet } from "./extract-tweet.js";
 
 const DEBOUNCE_MS = 300;
-const BLUR_CLASS = "no-spoiler-blur";
+const SHIELD_CLASS = "no-spoiler-shield";
 const REVEAL_CLASS = "no-spoiler-reveal";
 const TWEET_SELECTOR = 'article[data-testid="tweet"]';
 
@@ -11,14 +11,28 @@ const storage = createChromeStorage();
 
 type JudgeMessageResponse = JudgeResponse | { error: true };
 
+/**
+ * The blur lives on a cover element appended to the tweet, never on the
+ * tweet's own class attribute. X is react-native-web, which has no CSS
+ * `:hover` — hover is React state, so hovering an article re-renders it and
+ * React rewrites `className` from its own props, dropping anything we added
+ * there. Children we append are not part of React's tracked output and
+ * survive that re-render, so the cover does too.
+ *
+ * `backdrop-filter` blurs what is painted *behind* the cover, which leaves
+ * the reveal button inside it legible. `filter: blur()` on the article would
+ * blur the button too, because a filter applies to the whole subtree.
+ *
+ * `:has()` gives the cover a positioned containing block without touching
+ * the article's class or style attributes either.
+ */
 function injectStyles(): void {
   const style = document.createElement("style");
   style.textContent = `
-    .${BLUR_CLASS} {
-      filter: blur(12px);
+    ${TWEET_SELECTOR}:has(> .${SHIELD_CLASS}) {
       position: relative;
     }
-    .${REVEAL_CLASS} {
+    .${SHIELD_CLASS} {
       position: absolute;
       inset: 0;
       z-index: 9999;
@@ -26,8 +40,15 @@ function injectStyles(): void {
       align-items: center;
       justify-content: center;
       background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .${REVEAL_CLASS} {
+      background: rgba(0, 0, 0, 0.6);
       color: #fff;
       border: none;
+      border-radius: 9999px;
+      padding: 8px 16px;
       cursor: pointer;
       font: inherit;
     }
@@ -35,25 +56,35 @@ function injectStyles(): void {
   document.head.appendChild(style);
 }
 
-function blurTweet(article: Element): void {
-  article.classList.add(BLUR_CLASS);
+function shieldOf(article: Element): Element | null {
+  return article.querySelector(`:scope > .${SHIELD_CLASS}`);
+}
+
+function blurTweet(article: Element): Element {
+  const existing = shieldOf(article);
+  if (existing) return existing;
+  const shield = document.createElement("div");
+  shield.className = SHIELD_CLASS;
+  article.appendChild(shield);
+  return shield;
 }
 
 function unblurTweet(article: Element): void {
-  article.classList.remove(BLUR_CLASS);
-  article.querySelector(`.${REVEAL_CLASS}`)?.remove();
+  shieldOf(article)?.remove();
 }
 
-function addRevealControl(article: Element): void {
-  if (article.querySelector(`.${REVEAL_CLASS}`)) return;
+function addRevealControl(article: Element, tweetId: string): void {
+  const shield = blurTweet(article);
+  if (shield.querySelector(`.${REVEAL_CLASS}`)) return;
   const button = document.createElement("button");
   button.type = "button";
   button.className = REVEAL_CLASS;
   button.textContent = "Reveal spoiler";
   button.addEventListener("click", () => {
+    revealed.add(tweetId);
     unblurTweet(article);
   });
-  article.appendChild(button);
+  shield.appendChild(button);
 }
 
 function findNewTweets(mutations: MutationRecord[], seen: Set<Element>): Element[] {
@@ -84,10 +115,15 @@ interface ExtractedTweet {
  */
 const judged = new Map<string, boolean>();
 
-function renderVerdict(article: Element, isSpoiler: boolean): void {
-  if (isSpoiler) {
-    blurTweet(article);
-    addRevealControl(article);
+/**
+ * Tweets the user chose to reveal. A revealed tweet must stay revealed even
+ * when X remounts its article and the cached verdict would blur it again.
+ */
+const revealed = new Set<string>();
+
+function renderVerdict(article: Element, tweetId: string, isSpoiler: boolean): void {
+  if (isSpoiler && !revealed.has(tweetId)) {
+    addRevealControl(article, tweetId);
   } else {
     unblurTweet(article);
   }
@@ -112,7 +148,7 @@ function applyResults(extracted: ExtractedTweet[], response: JudgeMessageRespons
   for (const { tweet, article } of extracted) {
     const isSpoiler = Boolean(response.results[tweet.id]);
     judged.set(tweet.id, isSpoiler);
-    renderVerdict(article, isSpoiler);
+    renderVerdict(article, tweet.id, isSpoiler);
   }
 }
 
@@ -146,7 +182,7 @@ function startObserving(): void {
       }
       const verdict = judged.get(tweet.id);
       if (verdict !== undefined) {
-        renderVerdict(article, verdict);
+        renderVerdict(article, tweet.id, verdict);
         continue;
       }
       extracted.push({ tweet, article });

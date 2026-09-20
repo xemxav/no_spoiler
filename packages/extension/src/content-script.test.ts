@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JudgeResponse } from "@no-spoiler/shared";
 
-const BLUR_CLASS = "no-spoiler-blur";
+const SHIELD_SELECTOR = ".no-spoiler-shield";
 const REVEAL_SELECTOR = ".no-spoiler-reveal";
+const LEGACY_BLUR_CLASS = "no-spoiler-blur";
 const DEBOUNCE_MS = 300;
+
+// X's own article classes. React rewrites this attribute wholesale from its
+// props whenever it re-renders the article (hover, like/reply state, ...).
+const X_ARTICLE_CLASSES = "css-175oi2r r-18u37iz r-1udh08x r-1c4vpko";
 
 // Approximates current X/Twitter tweet markup, same shape as extract-tweet.test.ts.
 function tweetHtml(id: string, author: string, text: string): string {
@@ -27,6 +32,23 @@ const PROMOTED_HTML = `
   </article>
 `;
 
+/**
+ * Deliberately mechanism-agnostic: a spoiler counts as hidden whether the
+ * extension marks the article itself or covers it. The re-render tests below
+ * are about the behaviour surviving, not about which mechanism achieves it.
+ */
+function isHidden(article: Element): boolean {
+  return (
+    article.classList.contains(LEGACY_BLUR_CLASS) || article.querySelector(SHIELD_SELECTOR) !== null
+  );
+}
+
+function requireArticle(id: string): HTMLElement {
+  const article = document.getElementById(`article-${id}`);
+  if (!article) throw new Error(`fixture missing article ${id}`);
+  return article;
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -37,6 +59,7 @@ function wait(ms: number): Promise<void> {
  */
 async function setupPage(sendMessage: (message: unknown) => Promise<unknown>): Promise<void> {
   document.documentElement.replaceChild(document.createElement("body"), document.body);
+  document.head.innerHTML = "";
   vi.resetModules();
   vi.stubGlobal("chrome", {
     storage: {
@@ -67,9 +90,76 @@ async function settle(): Promise<void> {
   await wait(0);
 }
 
+async function setupSpoiler(id: string): Promise<{
+  article: HTMLElement;
+  sendMessage: ReturnType<typeof vi.fn>;
+}> {
+  const response: JudgeResponse = { results: { [id]: true } };
+  const sendMessage = vi.fn().mockResolvedValue(response);
+  await setupPage(sendMessage);
+
+  appendTweets(tweetHtml(id, "erin", "Spoiler-y take."));
+  await settle();
+
+  return { article: requireArticle(id), sendMessage };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("surviving an X re-render", () => {
+  it("keeps the tweet hidden when X rewrites the article's class attribute", async () => {
+    const { article } = await setupSpoiler("5005");
+    expect(isHidden(article)).toBe(true);
+
+    // X is react-native-web: hover is JS state, so hovering re-renders the
+    // article and React writes className from its own props, dropping
+    // anything an extension added to that attribute.
+    article.className = X_ARTICLE_CLASSES;
+    await settle();
+
+    expect(isHidden(article)).toBe(true);
+    expect(article.querySelector(REVEAL_SELECTOR)).not.toBeNull();
+  });
+
+  it("keeps the reveal control legible instead of blurring it with the tweet", async () => {
+    const { article } = await setupSpoiler("5007");
+
+    const shield = article.querySelector(SHIELD_SELECTOR);
+    const button = article.querySelector(REVEAL_SELECTOR);
+    expect(shield).not.toBeNull();
+    expect(button?.parentElement).toBe(shield);
+
+    // The cover blurs what is painted behind it, so its own button stays
+    // sharp. A `filter: blur()` anywhere in our CSS would blur the button
+    // too, since filters apply to the whole subtree.
+    const css = document.head.querySelector("style")?.textContent ?? "";
+    expect(css).toMatch(/backdrop-filter:\s*blur/);
+    expect(css).not.toMatch(/(^|[^-])filter:\s*blur/m);
+  });
+
+  it("leaves a revealed tweet revealed across a re-render and a remount", async () => {
+    const { article, sendMessage } = await setupSpoiler("5006");
+
+    const button = article.querySelector<HTMLButtonElement>(REVEAL_SELECTOR);
+    expect(button).not.toBeNull();
+    button?.click();
+    expect(isHidden(article)).toBe(false);
+
+    article.className = X_ARTICLE_CLASSES;
+    await settle();
+    expect(isHidden(article)).toBe(false);
+
+    // React remounting the subtree hands us a brand-new node for the same tweet.
+    article.remove();
+    appendTweets(tweetHtml("5006", "erin", "Spoiler-y take."));
+    await settle();
+
+    expect(isHidden(requireArticle("5006"))).toBe(false);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("fail open", () => {
@@ -80,9 +170,9 @@ describe("fail open", () => {
     appendTweets(tweetHtml("1001", "alice", "Huge upset in the final."));
     await settle();
 
-    const article = document.getElementById("article-1001");
-    expect(article?.classList.contains(BLUR_CLASS)).toBe(false);
-    expect(article?.querySelector(REVEAL_SELECTOR)).toBeNull();
+    const article = requireArticle("1001");
+    expect(isHidden(article)).toBe(false);
+    expect(article.querySelector(REVEAL_SELECTOR)).toBeNull();
   });
 
   it("renders the batch unblurred when the judge message itself rejects", async () => {
@@ -93,9 +183,9 @@ describe("fail open", () => {
     appendTweets(tweetHtml("1002", "alice", "Another one."));
     await settle();
 
-    const article = document.getElementById("article-1002");
-    expect(article?.classList.contains(BLUR_CLASS)).toBe(false);
-    expect(article?.querySelector(REVEAL_SELECTOR)).toBeNull();
+    const article = requireArticle("1002");
+    expect(isHidden(article)).toBe(false);
+    expect(article.querySelector(REVEAL_SELECTOR)).toBeNull();
   });
 });
 
@@ -108,21 +198,21 @@ describe("judged-tweet cache", () => {
     appendTweets(tweetHtml("2002", "bob", "Spoiler-y take."));
     await settle();
 
-    const first = document.getElementById("article-2002");
-    expect(first?.classList.contains(BLUR_CLASS)).toBe(true);
-    expect(first?.querySelector(REVEAL_SELECTOR)).not.toBeNull();
+    const first = requireArticle("2002");
+    expect(isHidden(first)).toBe(true);
+    expect(first.querySelector(REVEAL_SELECTOR)).not.toBeNull();
     expect(sendMessage).toHaveBeenCalledTimes(1);
 
     // X recycles timeline nodes on rescroll: same tweet id, brand new element.
-    first?.remove();
+    first.remove();
     appendTweets(tweetHtml("2002", "bob", "Spoiler-y take."));
     await settle();
 
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    const second = document.getElementById("article-2002");
+    const second = requireArticle("2002");
     expect(second).not.toBe(first);
-    expect(second?.classList.contains(BLUR_CLASS)).toBe(true);
-    expect(second?.querySelector(REVEAL_SELECTOR)).not.toBeNull();
+    expect(isHidden(second)).toBe(true);
+    expect(second.querySelector(REVEAL_SELECTOR)).not.toBeNull();
   });
 
   it("re-renders a reappearing non-spoiler tweet unblurred without judging it again", async () => {
@@ -132,14 +222,14 @@ describe("judged-tweet cache", () => {
 
     appendTweets(tweetHtml("2003", "bob", "Unrelated chatter."));
     await settle();
-    document.getElementById("article-2003")?.remove();
+    requireArticle("2003").remove();
     appendTweets(tweetHtml("2003", "bob", "Unrelated chatter."));
     await settle();
 
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    const second = document.getElementById("article-2003");
-    expect(second?.classList.contains(BLUR_CLASS)).toBe(false);
-    expect(second?.querySelector(REVEAL_SELECTOR)).toBeNull();
+    const second = requireArticle("2003");
+    expect(isHidden(second)).toBe(false);
+    expect(second.querySelector(REVEAL_SELECTOR)).toBeNull();
   });
 
   it("judges a tweet again when the first attempt failed", async () => {
@@ -152,12 +242,12 @@ describe("judged-tweet cache", () => {
 
     appendTweets(tweetHtml("2004", "bob", "Retry me."));
     await settle();
-    document.getElementById("article-2004")?.remove();
+    requireArticle("2004").remove();
     appendTweets(tweetHtml("2004", "bob", "Retry me."));
     await settle();
 
     expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(document.getElementById("article-2004")?.classList.contains(BLUR_CLASS)).toBe(true);
+    expect(isHidden(requireArticle("2004"))).toBe(true);
   });
 });
 
@@ -191,8 +281,8 @@ describe("malformed tweet markup", () => {
     await settle();
 
     expect(sendMessage).not.toHaveBeenCalled();
-    const promoted = document.getElementById("article-promoted");
-    expect(promoted?.classList.contains(BLUR_CLASS)).toBe(false);
-    expect(promoted?.querySelector(REVEAL_SELECTOR)).toBeNull();
+    const promoted = requireArticle("promoted");
+    expect(isHidden(promoted)).toBe(false);
+    expect(promoted.querySelector(REVEAL_SELECTOR)).toBeNull();
   });
 });
