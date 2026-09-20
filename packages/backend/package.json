@@ -9,7 +9,16 @@
     "test": "vitest run",
     "lint": "eslint ."
   },
+  "dependencies": {
+    "@no-spoiler/shared": "workspace:*",
+    "@typesafe-ai/sdk": "^0.6.0",
+    "express": "^5.2.1"
+  },
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.2",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
     "typescript": "^5.9.3",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
