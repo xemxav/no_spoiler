@@ -1,53 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import { buildEnv } from "./env.js";
+import { getWorktreeRoot, listWorktrees } from "./git.js";
 import { allocatePort } from "./port.js";
-import type { Registry } from "./registry.js";
+import { getRegistryPath, readRegistry, writeRegistry } from "./registry.js";
 
 /** Fixed base port to scan upward from; matches .env.example's own default. */
 const BASE_PORT = 3210;
-
-function runGit(args: string[], cwd: string): string {
-  return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
-}
-
-/** Absolute root of the worktree containing `cwd`. */
-export function getWorktreeRoot(cwd: string): string {
-  return runGit(["rev-parse", "--show-toplevel"], cwd);
-}
-
-/** Absolute path to the .git dir shared by every worktree of this repo. */
-function getGitCommonDir(cwd: string): string {
-  const raw = runGit(["rev-parse", "--git-common-dir"], cwd);
-  return resolve(cwd, raw);
-}
-
-/** Absolute paths of every worktree registered with this repo, main checkout included. */
-function listWorktrees(cwd: string): string[] {
-  const output = runGit(["worktree", "list", "--porcelain"], cwd);
-  const paths: string[] = [];
-  for (const line of output.split("\n")) {
-    if (line.startsWith("worktree ")) {
-      paths.push(line.slice("worktree ".length).trim());
-    }
-  }
-  return paths;
-}
-
-function readRegistry(registryPath: string): Registry {
-  if (!existsSync(registryPath)) {
-    return {};
-  }
-  return JSON.parse(readFileSync(registryPath, "utf8")) as Registry;
-}
-
-function writeRegistry(registryPath: string, registry: Registry): void {
-  mkdirSync(dirname(registryPath), { recursive: true });
-  writeFileSync(registryPath, JSON.stringify(registry, null, 2) + "\n");
-}
 
 /** Live TCP bind check: true if `port` can be bound right now. */
 function isPortFree(port: number): Promise<boolean> {
@@ -101,7 +63,7 @@ export interface PrepareResult {
  */
 export async function prepareSandbox(cwd: string): Promise<PrepareResult> {
   const worktreeRoot = getWorktreeRoot(cwd);
-  const registryPath = join(getGitCommonDir(cwd), "sandboxes.json");
+  const registryPath = getRegistryPath(cwd);
   const registry = readRegistry(registryPath);
 
   const port = await allocatePort({

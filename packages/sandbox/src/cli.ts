@@ -1,5 +1,8 @@
 #!/usr/bin/env node
+import { destroySandbox } from "./destroy.js";
+import { downSandbox } from "./down.js";
 import { prepareSandbox } from "./prepare.js";
+import { upSandbox } from "./up.js";
 
 async function main(): Promise<void> {
   const [command] = process.argv.slice(2);
@@ -20,9 +23,38 @@ async function main(): Promise<void> {
       }
       break;
     }
+    case "up": {
+      const result = await upSandbox(process.cwd());
+      if (result.alreadyRunning) {
+        console.log(`Already running on port ${result.port}, PID ${result.pid}`);
+      } else {
+        console.log(`Worktree:  ${result.worktreeRoot}`);
+        console.log(`Port:      ${result.port}`);
+        console.log(`PID:       ${result.pid}`);
+        console.log(`Log:       ${result.logPath}`);
+        console.log("Status:    running");
+      }
+      break;
+    }
+    case "down": {
+      const result = await downSandbox(process.cwd());
+      if (result.stopped) {
+        console.log(`Stopped PID ${result.pid} for ${result.worktreeRoot}`);
+      } else {
+        console.log(`Nothing running for ${result.worktreeRoot}`);
+      }
+      break;
+    }
+    case "destroy": {
+      const result = await destroySandbox(process.cwd());
+      console.log(
+        `Destroyed sandbox for ${result.worktreeRoot}${result.stopped ? " (was running, stopped)" : ""}`,
+      );
+      break;
+    }
     default: {
       console.error(`Unknown command: ${command ?? "(none)"}`);
-      console.error("Usage: sandbox prepare");
+      console.error("Usage: sandbox <prepare|up|down|destroy>");
       process.exitCode = 1;
     }
   }
