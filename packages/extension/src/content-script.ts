@@ -77,21 +77,42 @@ interface ExtractedTweet {
   article: Element;
 }
 
+/**
+ * Verdicts for tweets already judged in this page session, keyed by tweet id.
+ * X recycles timeline nodes on rescroll, so an element-keyed set can't tell
+ * that a reappearing tweet has been judged before — the id can.
+ */
+const judged = new Map<string, boolean>();
+
+function renderVerdict(article: Element, isSpoiler: boolean): void {
+  if (isSpoiler) {
+    blurTweet(article);
+    addRevealControl(article);
+  } else {
+    unblurTweet(article);
+  }
+}
+
+/** Fail open: drop the optimistic blur so the tweet reads normally. */
+function failOpen(extracted: ExtractedTweet[]): void {
+  for (const { article } of extracted) {
+    unblurTweet(article);
+  }
+}
+
 async function judgeBatch(tweets: Tweet[]): Promise<JudgeMessageResponse> {
   return (await chrome.runtime.sendMessage({ type: "judge", tweets })) as JudgeMessageResponse;
 }
 
 function applyResults(extracted: ExtractedTweet[], response: JudgeMessageResponse): void {
   if ("error" in response) {
-    // Leave the optimistic blur in place on error. Fail-open handling belongs to #8.
+    failOpen(extracted);
     return;
   }
   for (const { tweet, article } of extracted) {
-    if (response.results[tweet.id]) {
-      addRevealControl(article);
-    } else {
-      unblurTweet(article);
-    }
+    const isSpoiler = Boolean(response.results[tweet.id]);
+    judged.set(tweet.id, isSpoiler);
+    renderVerdict(article, isSpoiler);
   }
 }
 
@@ -118,7 +139,16 @@ function startObserving(): void {
     const extracted: ExtractedTweet[] = [];
     for (const article of batch) {
       const tweet = extractTweet(article);
-      if (!tweet) continue; // malformed/promoted markup, just skip it
+      if (!tweet) {
+        // Malformed/promoted markup: skip it silently and leave it as X rendered it.
+        unblurTweet(article);
+        continue;
+      }
+      const verdict = judged.get(tweet.id);
+      if (verdict !== undefined) {
+        renderVerdict(article, verdict);
+        continue;
+      }
       extracted.push({ tweet, article });
     }
     if (extracted.length === 0) return;
@@ -126,6 +156,7 @@ function startObserving(): void {
     judgeBatch(extracted.map((e) => e.tweet))
       .then((response) => applyResults(extracted, response))
       .catch((error: unknown) => {
+        failOpen(extracted);
         console.warn("no-spoiler: judge request failed", error);
       });
   }
