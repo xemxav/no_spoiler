@@ -22,10 +22,10 @@ function questionKey(tweetId: string): string {
   return `tweet_${tweetId}`;
 }
 
-function allClear(tweets: Tweet[]): JudgeResponse {
+function buildResults(tweets: Tweet[], isSpoiler: (tweet: Tweet) => boolean): JudgeResponse {
   const results: Record<string, boolean> = {};
   for (const tweet of tweets) {
-    results[tweet.id] = false;
+    results[tweet.id] = isSpoiler(tweet);
   }
   return { results };
 }
@@ -40,7 +40,7 @@ export function createApp(client: TypeSafeClientLike): Express {
     const tweets = body.tweets ?? [];
 
     if (watchlist.length === 0) {
-      res.json(allClear(tweets));
+      res.json(buildResults(tweets, () => false));
       return;
     }
 
@@ -57,13 +57,10 @@ export function createApp(client: TypeSafeClientLike): Express {
         questions,
       });
 
-      const results: Record<string, boolean> = {};
-      for (const tweet of tweets) {
+      const response = buildResults(tweets, (tweet) => {
         const probability = result.answers[questionKey(tweet.id)]?.noul ?? 0;
-        results[tweet.id] = probability >= SPOILER_THRESHOLD;
-      }
-
-      const response: JudgeResponse = { results };
+        return probability >= SPOILER_THRESHOLD;
+      });
       res.json(response);
     } catch {
       res.status(502).json({ error: "Failed to judge tweets" });
