@@ -17,7 +17,20 @@ function isJudgeMessage(message: unknown): message is JudgeMessage {
   );
 }
 
-async function handleJudge(tweets: Tweet[]): Promise<JudgeResponse | { error: true }> {
+/** Toolbar badge shown while the backend can't be reached. */
+const OFFLINE_BADGE_TEXT = "!";
+const OFFLINE_BADGE_COLOR = "#d93025";
+
+function showOfflineBadge(): void {
+  void chrome.action.setBadgeText({ text: OFFLINE_BADGE_TEXT });
+  void chrome.action.setBadgeBackgroundColor({ color: OFFLINE_BADGE_COLOR });
+}
+
+function clearOfflineBadge(): void {
+  void chrome.action.setBadgeText({ text: "" });
+}
+
+export async function handleJudge(tweets: Tweet[]): Promise<JudgeResponse | { error: true }> {
   try {
     const watchlist = await listTopics(storage);
     const body: JudgeRequest = { watchlist, tweets };
@@ -27,11 +40,15 @@ async function handleJudge(tweets: Tweet[]): Promise<JudgeResponse | { error: tr
       body: JSON.stringify(body),
     });
     if (!res.ok) {
+      showOfflineBadge();
       console.warn("no-spoiler: /judge responded with status", res.status);
       return { error: true };
     }
-    return (await res.json()) as JudgeResponse;
+    const response = (await res.json()) as JudgeResponse;
+    clearOfflineBadge();
+    return response;
   } catch (error) {
+    showOfflineBadge();
     console.warn("no-spoiler: /judge request failed", error);
     return { error: true };
   }
