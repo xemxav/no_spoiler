@@ -9,8 +9,12 @@
     "test": "vitest run",
     "lint": "eslint ."
   },
+  "dependencies": {
+    "@no-spoiler/shared": "workspace:*"
+  },
   "devDependencies": {
     "@types/chrome": "^0.3.0",
+    "jsdom": "^30.1.0",
     "typescript": "^5.9.3",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
