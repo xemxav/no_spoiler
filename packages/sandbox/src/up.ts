@@ -2,10 +2,9 @@ import { spawn } from "node:child_process";
 import { mkdirSync, openSync } from "node:fs";
 import { join } from "node:path";
 
-import { getWorktreeRoot } from "./git.js";
 import { decideUp, markRunning } from "./lifecycle.js";
 import { isProcessAlive } from "./process.js";
-import { getRegistryPath, readRegistry, writeRegistry } from "./registry.js";
+import { loadEntry, writeRegistry } from "./registry.js";
 
 export interface UpResult {
   worktreeRoot: string;
@@ -22,10 +21,7 @@ export interface UpResult {
  * PID in the shared registry with status "running".
  */
 export async function upSandbox(cwd: string): Promise<UpResult> {
-  const worktreeRoot = getWorktreeRoot(cwd);
-  const registryPath = getRegistryPath(cwd);
-  const registry = readRegistry(registryPath);
-  const entry = registry[worktreeRoot];
+  const { worktreeRoot, registryPath, registry, entry } = loadEntry(cwd);
 
   const decision = decideUp(entry, isProcessAlive);
 
@@ -43,6 +39,10 @@ export async function upSandbox(cwd: string): Promise<UpResult> {
       logPath,
       alreadyRunning: true,
     };
+  }
+
+  if (!entry) {
+    throw new Error("unreachable: decideUp returned spawn without a registry entry");
   }
 
   mkdirSync(join(worktreeRoot, ".sandbox"), { recursive: true });

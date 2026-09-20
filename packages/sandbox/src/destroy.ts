@@ -1,11 +1,9 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 
-import { stopProcessGroup } from "./down.js";
-import { getWorktreeRoot } from "./git.js";
 import { decideDown } from "./lifecycle.js";
-import { isProcessAlive } from "./process.js";
-import { getRegistryPath, readRegistry, writeRegistry } from "./registry.js";
+import { isProcessAlive, stopProcessGroup } from "./process.js";
+import { loadEntry, writeRegistry } from "./registry.js";
 
 export interface DestroyResult {
   worktreeRoot: string;
@@ -20,10 +18,7 @@ export interface DestroyResult {
  * worktree.
  */
 export async function destroySandbox(cwd: string): Promise<DestroyResult> {
-  const worktreeRoot = getWorktreeRoot(cwd);
-  const registryPath = getRegistryPath(cwd);
-  const registry = readRegistry(registryPath);
-  const entry = registry[worktreeRoot];
+  const { worktreeRoot, registryPath, registry, entry } = loadEntry(cwd);
 
   const decision = decideDown(entry, isProcessAlive);
   const stopped = decision.kind === "stop";
