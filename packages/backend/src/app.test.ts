@@ -1,6 +1,9 @@
+import type { AddressInfo } from "node:net";
+
+import type { Express } from "express";
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { createApp, type TypeSafeClientLike } from "./app.js";
+import { createApp, resolveListenOptions, type TypeSafeClientLike } from "./app.js";
 
 function makeClient(systemOne: TypeSafeClientLike["systemOne"]): TypeSafeClientLike {
   return { systemOne };
@@ -109,5 +112,98 @@ describe("POST /judge", () => {
 
     expect(res.status).toBe(502);
     expect(res.body).toEqual({ error: "Failed to judge tweets" });
+  });
+});
+
+describe("POST /judge shared-secret auth", () => {
+  const AUTH_TOKEN = "s3cret-token";
+
+  function judge(app: Express, authorization?: string) {
+    const pending = request(app).post("/judge");
+    if (authorization !== undefined) {
+      void pending.set("Authorization", authorization);
+    }
+    return pending.send({
+      watchlist: ["Lakers vs Celtics 9/19"],
+      tweets: [{ id: "1", author: "alice", text: "Lakers win it 110-100!" }],
+    });
+  }
+
+  function answeringClient() {
+    return vi.fn().mockResolvedValue({ answers: { tweet_1: { type: "noul", noul: 0.9 } } });
+  }
+
+  it("rejects a request with no Authorization header with 401 when a token is configured", async () => {
+    const systemOne = answeringClient();
+    const app = createApp(makeClient(systemOne), { authToken: AUTH_TOKEN });
+
+    const res = await judge(app);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: "Unauthorized" });
+    expect(systemOne).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched bearer token with 401", async () => {
+    const systemOne = answeringClient();
+    const app = createApp(makeClient(systemOne), { authToken: AUTH_TOKEN });
+
+    const res = await judge(app, "Bearer wrong-token");
+
+    expect(res.status).toBe(401);
+    expect(systemOne).not.toHaveBeenCalled();
+  });
+
+  it("accepts the configured bearer token", async () => {
+    const systemOne = answeringClient();
+    const app = createApp(makeClient(systemOne), { authToken: AUTH_TOKEN });
+
+    const res = await judge(app, `Bearer ${AUTH_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ results: { "1": true } });
+  });
+
+  it("requires no auth when no token is configured (the local sandbox case)", async () => {
+    const systemOne = answeringClient();
+    const app = createApp(makeClient(systemOne));
+
+    const res = await judge(app);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ results: { "1": true } });
+  });
+
+  it("treats a blank configured token as not configured", async () => {
+    const app = createApp(makeClient(answeringClient()), { authToken: "  " });
+
+    const res = await judge(app);
+
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("resolveListenOptions", () => {
+  it("defaults to port 3210 on 0.0.0.0 when PORT is unset", () => {
+    expect(resolveListenOptions({})).toEqual({ port: 3210, host: "0.0.0.0" });
+  });
+
+  it("uses PORT from the environment, as a platform like Railway injects it", () => {
+    expect(resolveListenOptions({ PORT: "8080" })).toEqual({ port: 8080, host: "0.0.0.0" });
+  });
+
+  it("binds the app on 0.0.0.0 with the resolved options", async () => {
+    const app = createApp(makeClient(vi.fn()));
+    // PORT=0 lets the OS pick a free port, so this test can't collide with a running sandbox.
+    const { port, host } = resolveListenOptions({ PORT: "0" });
+
+    const address = await new Promise<AddressInfo>((resolveAddress) => {
+      const server = app.listen(port, host, () => {
+        const info = server.address() as AddressInfo;
+        server.close(() => resolveAddress(info));
+      });
+    });
+
+    expect(address.address).toBe("0.0.0.0");
   });
 });

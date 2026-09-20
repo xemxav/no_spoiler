@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "start": "pnpm --filter @no-spoiler/backend start",
     "test": "turbo run test",
     "lint": "turbo run lint",
     "sandbox": "node packages/sandbox/dist/cli.js"
