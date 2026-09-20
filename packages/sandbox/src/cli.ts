@@ -12,6 +12,12 @@ async function main(): Promise<void> {
       console.log(`.env:      ${result.envPath}${result.bootstrapped ? " (bootstrapped)" : ""}`);
       console.log(`Registry:  ${result.registryPath}`);
       console.log("Status:    prepared");
+      if (result.bootstrapped) {
+        console.log(
+          "\nNo .env found in any worktree yet — bootstrapped .env from .env.example. " +
+            "Fill in real secrets (e.g. TYPESAFE_API_KEY) before running `sandbox up`.",
+        );
+      }
       break;
     }
     default: {

@@ -62,18 +62,25 @@ function isPortFree(port: number): Promise<boolean> {
   });
 }
 
-/** Finds the first other worktree (besides `worktreeRoot`) that already has an .env, if any. */
-function findSourceEnv(
-  worktreeRoot: string,
-  worktrees: string[],
-): { path: string; content: string } | null {
+/**
+ * Finds an existing .env to source values from: this worktree's own .env
+ * takes priority (so re-running `prepare` reuses already-filled-in secrets
+ * instead of re-bootstrapping over them), else the first other worktree
+ * that already has one.
+ */
+function findSourceEnv(worktreeRoot: string, worktrees: string[]): string | null {
+  const ownEnvPath = join(worktreeRoot, ".env");
+  if (existsSync(ownEnvPath)) {
+    return readFileSync(ownEnvPath, "utf8");
+  }
+
   for (const candidate of worktrees) {
     if (resolve(candidate) === resolve(worktreeRoot)) {
       continue;
     }
     const envPath = join(candidate, ".env");
     if (existsSync(envPath)) {
-      return { path: envPath, content: readFileSync(envPath, "utf8") };
+      return readFileSync(envPath, "utf8");
     }
   }
   return null;
@@ -108,23 +115,16 @@ export async function prepareSandbox(cwd: string): Promise<PrepareResult> {
   const exampleEnv = readFileSync(exampleEnvPath, "utf8");
 
   const worktrees = listWorktrees(cwd);
-  const source = findSourceEnv(worktreeRoot, worktrees);
+  const sourceEnv = findSourceEnv(worktreeRoot, worktrees);
 
   const { content, bootstrapped } = buildEnv({
     exampleEnv,
-    sourceEnv: source?.content ?? null,
+    sourceEnv,
     port,
   });
 
   const envPath = join(worktreeRoot, ".env");
   writeFileSync(envPath, content);
-
-  if (bootstrapped) {
-    console.log(
-      "No .env found in any worktree yet — bootstrapped .env from .env.example. " +
-        "Fill in real secrets (e.g. TYPESAFE_API_KEY) before running `sandbox up`.",
-    );
-  }
 
   execFileSync("pnpm", ["install"], { cwd: worktreeRoot, stdio: "inherit" });
 
