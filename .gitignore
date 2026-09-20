@@ -4,3 +4,4 @@ dist/
 .sandbox/
 *.log
 .turbo/
+.claude/worktrees/
