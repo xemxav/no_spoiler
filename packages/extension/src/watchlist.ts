@@ -11,16 +11,20 @@ export async function listTopics(storage: WatchlistStorage): Promise<string[]> {
   return Array.isArray(topics) ? (topics as string[]) : [];
 }
 
-export async function addTopic(storage: WatchlistStorage, topic: string): Promise<string[]> {
+async function mutateTopics(
+  storage: WatchlistStorage,
+  transform: (topics: string[]) => string[],
+): Promise<string[]> {
   const topics = await listTopics(storage);
-  const updated = [...topics, topic];
+  const updated = transform(topics);
   await storage.set({ [STORAGE_KEY]: updated });
   return updated;
 }
 
-export async function removeTopic(storage: WatchlistStorage, topic: string): Promise<string[]> {
-  const topics = await listTopics(storage);
-  const updated = topics.filter((existing) => existing !== topic);
-  await storage.set({ [STORAGE_KEY]: updated });
-  return updated;
+export function addTopic(storage: WatchlistStorage, topic: string): Promise<string[]> {
+  return mutateTopics(storage, (topics) => [...topics, topic]);
+}
+
+export function removeTopic(storage: WatchlistStorage, topic: string): Promise<string[]> {
+  return mutateTopics(storage, (topics) => topics.filter((existing) => existing !== topic));
 }

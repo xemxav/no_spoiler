@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsc --watch --preserveWatchOutput",
+    "dev": "mkdir -p dist && cp manifest.json popup.html dist/ && tsc --watch --preserveWatchOutput",
     "build": "tsc -p tsconfig.json && cp manifest.json popup.html dist/",
     "test": "vitest run",
     "lint": "eslint ."
