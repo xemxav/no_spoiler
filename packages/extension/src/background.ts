@@ -1,13 +1,10 @@
 import type { JudgeRequest, JudgeResponse, Tweet } from "@no-spoiler/shared";
-import { listTopics, type WatchlistStorage } from "./watchlist.js";
+import { createChromeStorage, listTopics } from "./watchlist.js";
 
 /** Local backend, dev-only. A configurable/deployed URL is a separate ticket (#9). */
 const DEFAULT_BACKEND_URL = "http://localhost:3210";
 
-const storage: WatchlistStorage = {
-  get: (keys) => chrome.storage.local.get(keys),
-  set: (items) => chrome.storage.local.set(items),
-};
+const storage = createChromeStorage();
 
 interface JudgeMessage {
   type: "judge";

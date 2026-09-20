@@ -1,5 +1,5 @@
 import type { JudgeResponse, Tweet } from "@no-spoiler/shared";
-import { listTopics, type WatchlistStorage } from "./watchlist.js";
+import { createChromeStorage, listTopics } from "./watchlist.js";
 import { extractTweet } from "./extract-tweet.js";
 
 const DEBOUNCE_MS = 300;
@@ -7,10 +7,7 @@ const BLUR_CLASS = "no-spoiler-blur";
 const REVEAL_CLASS = "no-spoiler-reveal";
 const TWEET_SELECTOR = 'article[data-testid="tweet"]';
 
-const storage: WatchlistStorage = {
-  get: (keys) => chrome.storage.local.get(keys),
-  set: (items) => chrome.storage.local.set(items),
-};
+const storage = createChromeStorage();
 
 type JudgeMessageResponse = JudgeResponse | { error: true };
 
@@ -75,17 +72,22 @@ function findNewTweets(mutations: MutationRecord[], seen: Set<Element>): Element
   return [...found];
 }
 
+interface ExtractedTweet {
+  tweet: Tweet;
+  article: Element;
+}
+
 async function judgeBatch(tweets: Tweet[]): Promise<JudgeMessageResponse> {
   return (await chrome.runtime.sendMessage({ type: "judge", tweets })) as JudgeMessageResponse;
 }
 
-function applyResults(elementsById: Map<string, Element>, response: JudgeMessageResponse): void {
+function applyResults(extracted: ExtractedTweet[], response: JudgeMessageResponse): void {
   if ("error" in response) {
     // Leave the optimistic blur in place on error. Fail-open handling belongs to #8.
     return;
   }
-  for (const [id, article] of elementsById) {
-    if (response.results[id]) {
+  for (const { tweet, article } of extracted) {
+    if (response.results[tweet.id]) {
       addRevealControl(article);
     } else {
       unblurTweet(article);
@@ -93,8 +95,16 @@ function applyResults(elementsById: Map<string, Element>, response: JudgeMessage
   }
 }
 
+let observer: MutationObserver | undefined;
+let stylesInjected = false;
+
 function startObserving(): void {
-  injectStyles();
+  if (observer) return; // already observing
+
+  if (!stylesInjected) {
+    injectStyles();
+    stylesInjected = true;
+  }
 
   const seen = new Set<Element>();
   let buffer: Element[] = [];
@@ -105,24 +115,22 @@ function startObserving(): void {
     buffer = [];
     timer = undefined;
 
-    const elementsById = new Map<string, Element>();
-    const tweets: Tweet[] = [];
+    const extracted: ExtractedTweet[] = [];
     for (const article of batch) {
       const tweet = extractTweet(article);
       if (!tweet) continue; // malformed/promoted markup, just skip it
-      elementsById.set(tweet.id, article);
-      tweets.push(tweet);
+      extracted.push({ tweet, article });
     }
-    if (tweets.length === 0) return;
+    if (extracted.length === 0) return;
 
-    judgeBatch(tweets)
-      .then((response) => applyResults(elementsById, response))
+    judgeBatch(extracted.map((e) => e.tweet))
+      .then((response) => applyResults(extracted, response))
       .catch((error: unknown) => {
         console.warn("no-spoiler: judge request failed", error);
       });
   }
 
-  const observer = new MutationObserver((mutations) => {
+  observer = new MutationObserver((mutations) => {
     const newTweets = findNewTweets(mutations, seen);
     if (newTweets.length === 0) return;
 
@@ -139,11 +147,34 @@ function startObserving(): void {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
-listTopics(storage)
-  .then((topics) => {
-    if (topics.length === 0) return; // nothing to watch for, no blur, no requests
+function stopObserving(): void {
+  observer?.disconnect();
+  observer = undefined;
+}
+
+/**
+ * Starts or stops observing based on the current watchlist. X is a
+ * single-page app, so this content script stays alive across in-app
+ * navigation — it must react to watchlist changes made via the popup while
+ * the tab is open, not just check once at injection time, or "no blur when
+ * the watchlist is empty" stops holding for the rest of the session.
+ */
+async function syncWithWatchlist(): Promise<void> {
+  const topics = await listTopics(storage);
+  if (topics.length === 0) {
+    stopObserving();
+  } else {
     startObserving();
-  })
-  .catch((error: unknown) => {
+  }
+}
+
+syncWithWatchlist().catch((error: unknown) => {
+  console.warn("no-spoiler: failed to read watchlist", error);
+});
+
+chrome.storage.onChanged.addListener((_changes, areaName) => {
+  if (areaName !== "local") return;
+  syncWithWatchlist().catch((error: unknown) => {
     console.warn("no-spoiler: failed to read watchlist", error);
   });
+});
