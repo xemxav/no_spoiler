@@ -1,8 +1,18 @@
 import type { JudgeRequest, JudgeResponse, Tweet } from "@no-spoiler/shared";
 import { createChromeStorage, listTopics } from "./watchlist.js";
 
-/** Local backend, dev-only. A configurable/deployed URL is a separate ticket (#9). */
-const DEFAULT_BACKEND_URL = "http://localhost:3210";
+/**
+ * Build-time config, injected by esbuild `--define` (see this package's
+ * `build`/`dev` scripts, which read the `BACKEND_URL` and `BACKEND_AUTH_TOKEN`
+ * environment variables). `BACKEND_URL` defaults to the local sandbox backend;
+ * point it at the deployed Railway URL to build against that instead.
+ * `BACKEND_AUTH_TOKEN` is empty for the local sandbox, which needs no auth.
+ */
+declare const __BACKEND_URL__: string;
+declare const __BACKEND_AUTH_TOKEN__: string;
+
+const BACKEND_URL = __BACKEND_URL__;
+const BACKEND_AUTH_TOKEN = __BACKEND_AUTH_TOKEN__;
 
 const storage = createChromeStorage();
 
@@ -34,9 +44,12 @@ export async function handleJudge(tweets: Tweet[]): Promise<JudgeResponse | { er
   try {
     const watchlist = await listTopics(storage);
     const body: JudgeRequest = { watchlist, tweets };
-    const res = await fetch(`${DEFAULT_BACKEND_URL}/judge`, {
+    const res = await fetch(`${BACKEND_URL}/judge`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(BACKEND_AUTH_TOKEN ? { Authorization: `Bearer ${BACKEND_AUTH_TOKEN}` } : {}),
+      },
       body: JSON.stringify(body),
     });
     if (!res.ok) {

@@ -1,4 +1,10 @@
-import express, { type Express, type Request, type Response } from "express";
+import express, {
+  type Express,
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from "express";
 import { noul, type NoulQuestion, type NoulResponse } from "@typesafe-ai/sdk";
 import type { JudgeRequest, JudgeResponse, Tweet } from "@no-spoiler/shared";
 
@@ -30,11 +36,59 @@ function buildResults(tweets: Tweet[], isSpoiler: (tweet: Tweet) => boolean): Ju
   return { results };
 }
 
-export function createApp(client: TypeSafeClientLike): Express {
+export interface CreateAppOptions {
+  /**
+   * Shared secret callers must present as `Authorization: Bearer <token>`.
+   * Blank or omitted means no auth at all, which is the local sandbox case:
+   * the secret only matters once the backend is on a public URL, where an
+   * open `/judge` would let anyone burn the owner's TypeSafe API key.
+   */
+  authToken?: string;
+}
+
+/**
+ * Rejects requests whose bearer token doesn't match `expectedToken` with 401.
+ * A blank `expectedToken` means "not configured": every request is let through.
+ */
+function requireBearerToken(expectedToken: string): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (expectedToken === "") {
+      next();
+      return;
+    }
+
+    const header = req.get("authorization") ?? "";
+    const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+
+    if (presented !== expectedToken) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    next();
+  };
+}
+
+/**
+ * Listen options for a deployed context: the host is always `0.0.0.0` (a
+ * platform like Railway routes to the container's external interface, so
+ * binding loopback only would be unreachable) and the port comes from the
+ * platform-injected `PORT`, falling back to the sandbox default.
+ */
+export function resolveListenOptions(env: NodeJS.ProcessEnv = process.env): {
+  port: number;
+  host: string;
+} {
+  return { port: Number(env.PORT ?? 3210), host: "0.0.0.0" };
+}
+
+export function createApp(client: TypeSafeClientLike, options: CreateAppOptions = {}): Express {
   const app = express();
   app.use(express.json());
 
-  app.post("/judge", async (req: Request, res: Response) => {
+  const authToken = (options.authToken ?? "").trim();
+
+  app.post("/judge", requireBearerToken(authToken), async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as Partial<JudgeRequest>;
     const watchlist = body.watchlist ?? [];
     const tweets = body.tweets ?? [];
