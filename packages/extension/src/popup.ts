@@ -1,9 +1,6 @@
-import { addTopic, listTopics, removeTopic, type WatchlistStorage } from "./watchlist.js";
+import { addTopic, createChromeStorage, listTopics, removeTopic } from "./watchlist.js";
 
-const storage: WatchlistStorage = {
-  get: (keys) => chrome.storage.local.get(keys),
-  set: (items) => chrome.storage.local.set(items),
-};
+const storage = createChromeStorage();
 
 const form = document.getElementById("add-form") as HTMLFormElement;
 const input = document.getElementById("topic-input") as HTMLInputElement;

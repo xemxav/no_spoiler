@@ -5,5 +5,16 @@
   "action": {
     "default_popup": "popup.html"
   },
-  "permissions": ["storage"]
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage"],
+  "host_permissions": ["https://x.com/*", "https://twitter.com/*", "http://localhost:3210/*"]
 }

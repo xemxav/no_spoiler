@@ -3,6 +3,14 @@ export interface WatchlistStorage {
   set(items: Record<string, unknown>): Promise<void>;
 }
 
+/** Adapts the real chrome.storage.local API to WatchlistStorage. */
+export function createChromeStorage(): WatchlistStorage {
+  return {
+    get: (keys) => chrome.storage.local.get(keys),
+    set: (items) => chrome.storage.local.set(items),
+  };
+}
+
 const STORAGE_KEY = "watchlist";
 
 export async function listTopics(storage: WatchlistStorage): Promise<string[]> {
