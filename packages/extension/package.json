@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsc --watch --preserveWatchOutput",
-    "build": "tsc -p tsconfig.json",
+    "dev": "mkdir -p dist && cp manifest.json popup.html dist/ && tsc --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.json && cp manifest.json popup.html dist/",
     "test": "vitest run",
     "lint": "eslint ."
   },
   "devDependencies": {
+    "@types/chrome": "^0.3.0",
     "typescript": "^5.9.3",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
