@@ -4,8 +4,12 @@ import { extractTweet } from "./extract-tweet.js";
 
 const DEBOUNCE_MS = 300;
 const SHIELD_CLASS = "no-spoiler-shield";
+const PENDING_CLASS = "no-spoiler-pending";
+const BADGE_CLASS = "no-spoiler-badge";
+const HEADLINE_CLASS = "no-spoiler-headline";
 const REVEAL_CLASS = "no-spoiler-reveal";
 const TWEET_SELECTOR = 'article[data-testid="tweet"]';
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 const storage = createChromeStorage();
 
@@ -20,11 +24,20 @@ type JudgeMessageResponse = JudgeResponse | { error: true };
  * survive that re-render, so the cover does too.
  *
  * `backdrop-filter` blurs what is painted *behind* the cover, which leaves
- * the reveal button inside it legible. `filter: blur()` on the article would
- * blur the button too, because a filter applies to the whole subtree.
+ * the cover's own contents legible. `filter: blur()` on the article would blur
+ * them too, because a filter applies to the whole subtree.
  *
  * `:has()` gives the cover a positioned containing block without touching
  * the article's class or style attributes either.
+ *
+ * Design tokens are declared on our own cover element rather than `:root`:
+ * `:root` here is X's, and properties defined there would leak into their
+ * page. Declared on the cover they reach our subtree and nothing else.
+ *
+ * X ships a light and a dark theme, so the cover cannot assume either. The
+ * scrim is near-opaque paper and everything on it is ink, which is a verified
+ * 17.4:1 — contrast holds whichever theme X painted behind, instead of
+ * depending on it.
  */
 function injectStyles(): void {
   const style = document.createElement("style");
@@ -33,34 +46,134 @@ function injectStyles(): void {
       position: relative;
     }
     .${SHIELD_CLASS} {
+      --ns-ink: #141218;
+      --ns-coral: #FF3D5A;
+      --ns-amber: #FFD84D;
+      --ns-teal: #00C2A8;
       position: absolute;
       inset: 0;
       z-index: 9999;
+      box-sizing: border-box;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      gap: 13px;
+      overflow: hidden;
+      padding: 16px 24px;
+      /* --ns-paper at 90%, so the blur behind still reads as motion. */
+      background: rgba(251, 247, 240, 0.9);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      font-family: system-ui, sans-serif;
+      color: var(--ns-ink);
+    }
+    .${PENDING_CLASS} {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      box-sizing: border-box;
+      border: 2px solid var(--ns-ink);
+      border-radius: 999px;
+      background: var(--ns-amber);
+      color: var(--ns-ink);
+      padding: 5px 11px;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+    }
+    .${BADGE_CLASS} {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 2px solid var(--ns-ink);
+      border-radius: 999px;
+      background: var(--ns-coral);
+      color: var(--ns-ink);
+      padding: 5px 13px;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+    }
+    .${HEADLINE_CLASS} {
+      margin: 0;
+      max-width: 420px;
+      text-align: center;
+      font-size: 18px;
+      line-height: 1.15;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      color: var(--ns-ink);
     }
     .${REVEAL_CLASS} {
-      background: rgba(0, 0, 0, 0.6);
-      color: #fff;
-      border: none;
-      border-radius: 9999px;
-      padding: 8px 16px;
+      height: 46px;
+      padding: 0 26px;
+      border: 2px solid var(--ns-ink);
+      border-radius: 14px;
+      background: var(--ns-teal);
+      color: var(--ns-ink);
+      box-shadow: 4px 4px 0 var(--ns-ink);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 800;
       cursor: pointer;
-      font: inherit;
+      transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+    }
+    .${REVEAL_CLASS}:active {
+      transform: translate(4px, 4px);
+      box-shadow: none;
+    }
+    .${REVEAL_CLASS}:focus-visible {
+      outline: 3px solid var(--ns-ink);
+      outline-offset: 3px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .${REVEAL_CLASS} {
+        transition: none;
+      }
+      .${REVEAL_CLASS}:active {
+        transform: none;
+        box-shadow: 4px 4px 0 var(--ns-ink);
+      }
     }
   `;
   document.head.appendChild(style);
+}
+
+/**
+ * The mark, reduced to its two-disc form — the badge renders it small enough
+ * that the third disc would turn to mush. See "Identity" in the design system.
+ */
+function createMark(size: number): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 64 64");
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.setAttribute("aria-hidden", "true");
+  for (const disc of [
+    { cx: 44, opacity: "0.35" },
+    { cx: 26, opacity: "1" },
+  ]) {
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", String(disc.cx));
+    circle.setAttribute("cy", "32");
+    circle.setAttribute("r", "19");
+    circle.setAttribute("fill", "#141218");
+    circle.setAttribute("opacity", disc.opacity);
+    svg.appendChild(circle);
+  }
+  return svg;
 }
 
 function shieldOf(article: Element): Element | null {
   return article.querySelector(`:scope > .${SHIELD_CLASS}`);
 }
 
-function blurTweet(article: Element): Element {
+function coverTweet(article: Element): Element {
   const existing = shieldOf(article);
   if (existing) return existing;
   const shield = document.createElement("div");
@@ -69,22 +182,53 @@ function blurTweet(article: Element): Element {
   return shield;
 }
 
-function unblurTweet(article: Element): void {
+function uncoverTweet(article: Element): void {
   shieldOf(article)?.remove();
 }
 
-function addRevealControl(article: Element, tweetId: string): void {
-  const shield = blurTweet(article);
-  if (shield.querySelector(`.${REVEAL_CLASS}`)) return;
+/**
+ * The cover goes on optimistically, before any verdict exists. Without this
+ * indicator a post awaiting judgment is indistinguishable from a confirmed
+ * spoiler, so every new post in the timeline flashes as one.
+ */
+function showAnalysing(article: Element): void {
+  const shield = coverTweet(article);
+  if (shield.firstChild) return; // a verdict already rendered here
+  const chip = document.createElement("div");
+  chip.className = PENDING_CLASS;
+  chip.textContent = "Analysing\u2026";
+  shield.appendChild(chip);
+}
+
+/**
+ * The badge, the headline and the button sit directly in the cover rather than
+ * in a card of their own, so the backdrop filter leaves every one of them
+ * sharp — the same reason the reveal control has always lived there.
+ */
+function showSpoilerNotice(article: Element, tweetId: string): void {
+  const shield = coverTweet(article);
+  if (shield.querySelector(`.${BADGE_CLASS}`)) return;
+
+  const badge = document.createElement("span");
+  badge.className = BADGE_CLASS;
+  badge.appendChild(createMark(15));
+  badge.appendChild(document.createTextNode("Spoiler detected"));
+
+  const headline = document.createElement("p");
+  headline.className = HEADLINE_CLASS;
+  headline.textContent = "This post matches a topic on your watchlist.";
+
   const button = document.createElement("button");
   button.type = "button";
   button.className = REVEAL_CLASS;
-  button.textContent = "Reveal spoiler";
+  button.textContent = "Reveal";
   button.addEventListener("click", () => {
     revealed.add(tweetId);
-    unblurTweet(article);
+    uncoverTweet(article);
   });
-  shield.appendChild(button);
+
+  // Replaces the analysing chip rather than joining it: the verdict is in.
+  shield.replaceChildren(badge, headline, button);
 }
 
 function findNewTweets(mutations: MutationRecord[], seen: Set<Element>): Element[] {
@@ -123,16 +267,16 @@ const revealed = new Set<string>();
 
 function renderVerdict(article: Element, tweetId: string, isSpoiler: boolean): void {
   if (isSpoiler && !revealed.has(tweetId)) {
-    addRevealControl(article, tweetId);
+    showSpoilerNotice(article, tweetId);
   } else {
-    unblurTweet(article);
+    uncoverTweet(article);
   }
 }
 
 /** Fail open: drop the optimistic blur so the tweet reads normally. */
 function failOpen(extracted: ExtractedTweet[]): void {
   for (const { article } of extracted) {
-    unblurTweet(article);
+    uncoverTweet(article);
   }
 }
 
@@ -177,7 +321,7 @@ function startObserving(): void {
       const tweet = extractTweet(article);
       if (!tweet) {
         // Malformed/promoted markup: skip it silently and leave it as X rendered it.
-        unblurTweet(article);
+        uncoverTweet(article);
         continue;
       }
       const verdict = judged.get(tweet.id);
@@ -203,7 +347,7 @@ function startObserving(): void {
 
     for (const article of newTweets) {
       seen.add(article);
-      blurTweet(article);
+      showAnalysing(article);
       buffer.push(article);
     }
 

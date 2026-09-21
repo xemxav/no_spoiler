@@ -8,4 +8,11 @@ export default tseslint.config(
   {
     ignores: ["**/dist/**", "**/node_modules/**"],
   },
+  {
+    // Build-time scripts run under Node, not in a browser or a service worker.
+    files: ["**/scripts/*.mjs"],
+    languageOptions: {
+      globals: { Buffer: "readonly", process: "readonly" },
+    },
+  },
 );

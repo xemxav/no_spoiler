@@ -3,6 +3,8 @@ import type { JudgeResponse } from "@no-spoiler/shared";
 
 const SHIELD_SELECTOR = ".no-spoiler-shield";
 const REVEAL_SELECTOR = ".no-spoiler-reveal";
+const PENDING_SELECTOR = ".no-spoiler-pending";
+const BADGE_SELECTOR = ".no-spoiler-badge";
 const LEGACY_BLUR_CLASS = "no-spoiler-blur";
 const DEBOUNCE_MS = 300;
 
@@ -88,6 +90,21 @@ async function settle(): Promise<void> {
   await wait(0);
   await wait(DEBOUNCE_MS + 50);
   await wait(0);
+}
+
+/**
+ * A judge response the test settles by hand, so it can look at the page while
+ * a verdict is still outstanding.
+ */
+function deferredVerdict(): {
+  respond: (response: JudgeResponse) => void;
+  sendMessage: ReturnType<typeof vi.fn>;
+} {
+  let respond!: (response: JudgeResponse) => void;
+  const pending = new Promise<JudgeResponse>((resolve) => {
+    respond = resolve;
+  });
+  return { respond, sendMessage: vi.fn().mockReturnValue(pending) };
 }
 
 async function setupSpoiler(id: string): Promise<{
@@ -284,5 +301,97 @@ describe("malformed tweet markup", () => {
     const promoted = requireArticle("promoted");
     expect(isHidden(promoted)).toBe(false);
     expect(promoted.querySelector(REVEAL_SELECTOR)).toBeNull();
+  });
+});
+
+describe("analysing state", () => {
+  it("says a freshly covered post is being analysed, before any verdict exists", async () => {
+    // The cover goes on optimistically the moment a post appears. Held here
+    // with an unresolved judge response, that is the whole state the user sees.
+    const { respond, sendMessage } = deferredVerdict();
+    await setupPage(sendMessage);
+
+    appendTweets(tweetHtml("4001", "dana", "Verdict still pending."));
+    await wait(0);
+
+    const article = requireArticle("4001");
+    expect(isHidden(article)).toBe(true);
+    const pending = article.querySelector(PENDING_SELECTOR);
+    expect(pending?.textContent).toMatch(/analysing/i);
+    expect(article.querySelector(REVEAL_SELECTOR)).toBeNull();
+
+    respond({ results: {} });
+  });
+
+  it("swaps the analysing indicator for the spoiler notice when the verdict says spoiler", async () => {
+    const { article } = await setupSpoiler("4002");
+
+    expect(article.querySelector(PENDING_SELECTOR)).toBeNull();
+    expect(article.querySelector(BADGE_SELECTOR)?.textContent).toMatch(/spoiler detected/i);
+  });
+
+  it("takes the cover off altogether when the verdict clears the post", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ results: { "4003": false } });
+    await setupPage(sendMessage);
+
+    appendTweets(tweetHtml("4003", "dana", "Nothing to see here."));
+    await wait(0);
+    expect(requireArticle("4003").querySelector(PENDING_SELECTOR)).not.toBeNull();
+
+    await settle();
+
+    expect(isHidden(requireArticle("4003"))).toBe(false);
+  });
+
+  it("keeps the analysing indicator inside the cover, where the backdrop filter leaves it sharp", async () => {
+    const { respond, sendMessage } = deferredVerdict();
+    await setupPage(sendMessage);
+
+    appendTweets(tweetHtml("4004", "dana", "Verdict still pending."));
+    await wait(0);
+
+    const article = requireArticle("4004");
+    expect(article.querySelector(PENDING_SELECTOR)?.closest(SHIELD_SELECTOR)).toBe(
+      article.querySelector(SHIELD_SELECTOR),
+    );
+
+    respond({ results: {} });
+  });
+});
+
+describe("spoiler notice", () => {
+  it("says plainly that the post matched the watchlist", async () => {
+    const { article } = await setupSpoiler("4005");
+
+    const shield = article.querySelector(SHIELD_SELECTOR);
+    expect(shield?.textContent).toMatch(/watchlist/i);
+  });
+
+  it("reveals the post in one click", async () => {
+    const { article } = await setupSpoiler("4006");
+
+    const button = article.querySelector<HTMLButtonElement>(REVEAL_SELECTOR);
+    expect(button).not.toBeNull();
+    button?.click();
+
+    expect(isHidden(article)).toBe(false);
+  });
+});
+
+describe("injected styles", () => {
+  it("defines no custom property on the page root and prefixes every class it styles", async () => {
+    await setupPage(vi.fn().mockResolvedValue({ results: {} }));
+
+    // `:root` on X is X's own, so a custom property declared there leaks into
+    // their page. Ours are scoped to elements the extension owns.
+    const css = document.head.querySelector("style")?.textContent ?? "";
+    expect(css).not.toMatch(/:root/);
+    expect(css).toMatch(/--ns-/);
+
+    const classSelectors = css.match(/\.[A-Za-z][\w-]*/g) ?? [];
+    expect(classSelectors.length).toBeGreaterThan(0);
+    for (const selector of classSelectors) {
+      expect(selector).toMatch(/^\.no-spoiler-/);
+    }
   });
 });
