@@ -542,6 +542,15 @@ describe("the in-page pill", () => {
     expect(requirePill().querySelectorAll("button, a, input, select, textarea")).toHaveLength(0);
   });
 
+  it("carries the mark, so the pill is recognisably this extension", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    // The design system's one sanctioned exception: in the pill the fill takes
+    // the state colour and the glyph carries the brand.
+    const discs = requirePill().querySelectorAll("svg circle");
+    expect(discs).toHaveLength(2);
+  });
+
   it("announces its state rather than leaving it to colour", async () => {
     await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
 

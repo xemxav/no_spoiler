@@ -12,6 +12,7 @@ const HEADLINE_CLASS = "no-spoiler-headline";
 const REVEAL_CLASS = "no-spoiler-reveal";
 const PILL_CLASS = "no-spoiler-pill";
 const PILL_DOT_CLASS = "no-spoiler-pill-dot";
+const PILL_MARK_CLASS = "no-spoiler-pill-mark";
 const PILL_TITLE_CLASS = "no-spoiler-pill-title";
 const PILL_DETAIL_CLASS = "no-spoiler-pill-detail";
 const TWEET_SELECTOR = 'article[data-testid="tweet"]';
@@ -51,11 +52,15 @@ function injectStyles(): void {
     ${TWEET_SELECTOR}:has(> .${SHIELD_CLASS}) {
       position: relative;
     }
-    .${SHIELD_CLASS} {
+    .${SHIELD_CLASS},
+    .${PILL_CLASS} {
+      --ns-paper: #FBF7F0;
       --ns-ink: #141218;
       --ns-coral: #FF3D5A;
       --ns-amber: #FFD84D;
       --ns-teal: #00C2A8;
+    }
+    .${SHIELD_CLASS} {
       position: absolute;
       inset: 0;
       z-index: 9999;
@@ -73,6 +78,12 @@ function injectStyles(): void {
       background: rgba(251, 247, 240, 0.9);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
+      /*
+       * Not the design system's families: the shipped woff2 files are not
+       * web-accessible resources, and making them so would advertise the
+       * extension's presence to every page. Both families fall back to
+       * system-ui anyway, which is what the page gets here.
+       */
       font-family: system-ui, sans-serif;
       color: var(--ns-ink);
     }
@@ -140,9 +151,6 @@ function injectStyles(): void {
       outline-offset: 3px;
     }
     .${PILL_CLASS} {
-      --ns-ink: #141218;
-      --ns-coral: #FF3D5A;
-      --ns-teal: #00C2A8;
       position: fixed;
       bottom: 16px;
       /* Left, not right: X's message drawer owns the bottom-right on desktop. */
@@ -156,7 +164,7 @@ function injectStyles(): void {
       padding: 8px 14px 8px 11px;
       border: 2px solid var(--ns-ink);
       border-radius: 18px;
-      background: #FBF7F0;
+      background: var(--ns-paper);
       box-shadow: 3px 3px 0 var(--ns-ink);
       color: var(--ns-ink);
       font-family: system-ui, sans-serif;
@@ -164,6 +172,21 @@ function injectStyles(): void {
     }
     .${PILL_CLASS}[data-state="unreachable"] {
       background: var(--ns-coral);
+    }
+    .${PILL_MARK_CLASS} {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      overflow: hidden;
+      border: 2px solid var(--ns-ink);
+      border-radius: 999px;
+      background: var(--ns-teal);
+    }
+    .${PILL_CLASS}[data-state="unreachable"] .${PILL_MARK_CLASS} {
+      background: var(--ns-paper);
     }
     .${PILL_DOT_CLASS} {
       flex-shrink: 0;
@@ -174,7 +197,8 @@ function injectStyles(): void {
       background: var(--ns-teal);
     }
     .${PILL_CLASS}[data-state="unreachable"] .${PILL_DOT_CLASS} {
-      background: #FBF7F0;
+      /* Coral on coral would vanish; the word beside it carries the state. */
+      background: var(--ns-paper);
     }
     .${PILL_TITLE_CLASS} {
       display: block;
@@ -301,6 +325,13 @@ function showPill(topicCount: number): void {
     // Announced as a state, not as something to interact with.
     pill.setAttribute("role", "status");
     pill.setAttribute("aria-live", "polite");
+
+    // The design system's one sanctioned exception: here the tile takes the
+    // state colour and the glyph carries the brand.
+    const mark = document.createElement("span");
+    mark.className = PILL_MARK_CLASS;
+    mark.appendChild(createMark(16));
+    pill.appendChild(mark);
 
     const dot = document.createElement("span");
     dot.className = PILL_DOT_CLASS;

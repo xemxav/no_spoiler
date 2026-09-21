@@ -66,6 +66,19 @@ describe("the backend address", () => {
     );
   });
 
+  it("drops a trailing slash, so the paths built from it are not doubled", async () => {
+    const backingStore: Record<string, unknown> = {};
+    await setBackendUrl(createFakeStorage({}, backingStore), "http://localhost:3210/");
+
+    expect(await getBackendUrl(createFakeStorage({}, backingStore))).toBe("http://localhost:3210");
+  });
+
+  it("drops a trailing slash from an address stored before that rule existed", async () => {
+    const storage = createFakeStorage({ backendUrl: "https://engine.up.railway.app/" });
+
+    expect(await getBackendUrl(storage)).toBe("https://engine.up.railway.app");
+  });
+
   it("stores the address without the whitespace around it", async () => {
     const backingStore: Record<string, unknown> = {};
     await setBackendUrl(createFakeStorage({}, backingStore), "  http://localhost:3210  ");

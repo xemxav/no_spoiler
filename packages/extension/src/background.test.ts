@@ -115,6 +115,18 @@ describe("the backend address", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(`${DEFAULT_BACKEND_URL}/judge`);
   });
 
+  it("builds a single-slash path from an address that ends in one", async () => {
+    const fetchMock = ok();
+    const { handleJudge } = await loadBackground(fetchMock, {
+      watchlist: ["Lakers vs Celtics 9/19"],
+      backendUrl: "https://engine.up.railway.app/",
+    });
+
+    await handleJudge(TWEETS);
+
+    expect(fetchMock.mock.calls[0][0]).toBe("https://engine.up.railway.app/judge");
+  });
+
   it("reads it per request, so a change in the popup takes effect at once", async () => {
     const fetchMock = ok();
     const { handleJudge, state } = await loadBackground(fetchMock);

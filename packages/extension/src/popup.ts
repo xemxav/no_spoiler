@@ -1,6 +1,7 @@
 import { addTopic, listTopics, removeTopic } from "./watchlist.js";
 import { getBackendUrl, isEnabled, setBackendUrl, setEnabled } from "./settings.js";
 import { createChromeStorage } from "./storage.js";
+import { reasonToRefuse } from "./host-permissions.js";
 
 const storage = createChromeStorage();
 
@@ -30,6 +31,13 @@ const backendErrorText = document.getElementById("backend-error-text") as HTMLEl
  * settings module.
  */
 const SLOW_ENGINE_MS = 1000;
+
+/**
+ * A socket that is accepted and then never answered would otherwise leave the
+ * status line saying "checking" for as long as the popup is open — which is
+ * the failure the status line exists to report.
+ */
+const ENGINE_TIMEOUT_MS = 5000;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -112,89 +120,42 @@ function render(): void {
   renderProtection();
 }
 
+/** A field, its message and the element the message is written into. */
+interface ErrorSlot {
+  field: HTMLInputElement;
+  message: HTMLElement;
+  text: HTMLElement;
+}
+
+const topicSlot: ErrorSlot = { field: input, message: fieldError, text: fieldErrorText };
+const addressSlot: ErrorSlot = {
+  field: backendField,
+  message: backendError,
+  text: backendErrorText,
+};
+
 /**
- * Wires the field to the message, or unwires it. `aria-describedby` points at
- * the message only while there is one, so the field is never described by an
+ * Wires a field to its message, or unwires it. `aria-describedby` points at
+ * the message only while there is one, so a field is never described by an
  * empty element.
  */
-function showFieldError(message: string | null): void {
+function showError(slot: ErrorSlot, message: string | null): void {
   if (message === null) {
-    fieldError.hidden = true;
-    fieldErrorText.textContent = "";
-    input.removeAttribute("aria-invalid");
-    input.removeAttribute("aria-describedby");
+    slot.message.hidden = true;
+    slot.text.textContent = "";
+    slot.field.removeAttribute("aria-invalid");
+    slot.field.removeAttribute("aria-describedby");
     return;
   }
-  fieldErrorText.textContent = message;
-  fieldError.hidden = false;
-  input.setAttribute("aria-invalid", "true");
-  input.setAttribute("aria-describedby", fieldError.id);
+  slot.text.textContent = message;
+  slot.message.hidden = false;
+  slot.field.setAttribute("aria-invalid", "true");
+  slot.field.setAttribute("aria-describedby", slot.message.id);
 }
 
 function show(updated: string[]): void {
   topics = updated;
   render();
-}
-
-/**
- * The addresses this extension may use as a backend: the hosts it declares
- * permission for, minus the pages it injects into. Read from the manifest so
- * there is one list, not a copy of it here that can drift.
- */
-function backendPatterns(): string[] {
-  const manifest = chrome.runtime.getManifest();
-  const pages = new Set(
-    (manifest.content_scripts ?? []).flatMap((script) => script.matches ?? []),
-  );
-  return (manifest.host_permissions ?? []).filter((pattern: string) => !pages.has(pattern));
-}
-
-/**
- * A Chrome match pattern, matched on scheme and host only — the path is always
- * `/*` for a backend, and the address is a origin.
- */
-function patternAllows(pattern: string, address: URL): boolean {
-  const parsed = /^(\*|https?):\/\/([^/]+)\//.exec(pattern);
-  if (!parsed) return false;
-  const [, scheme, host] = parsed;
-
-  if (scheme !== "*" && `${scheme}:` !== address.protocol) return false;
-  if (host === "*") return true;
-  if (host.startsWith("*.")) return address.host.endsWith(host.slice(1));
-  return address.host === host;
-}
-
-/**
- * Why the address was refused, or null if it is fine. Requesting permission
- * for a host outside the declared patterns at runtime is out of scope, so an
- * address outside them would simply fail every request — saying so beats
- * leaving the user to debug a silent failure.
- */
-function reasonToRefuse(value: string): string | null {
-  let address: URL;
-  try {
-    address = new URL(value);
-  } catch {
-    return "That is not an address the extension can use. It needs a full URL, like http://localhost:3210.";
-  }
-
-  const patterns = backendPatterns();
-  if (patterns.some((pattern) => patternAllows(pattern, address))) return null;
-  return `The extension is not allowed to reach that address. It can only reach ${patterns.join(", ")}.`;
-}
-
-function showBackendError(message: string | null): void {
-  if (message === null) {
-    backendError.hidden = true;
-    backendErrorText.textContent = "";
-    backendField.removeAttribute("aria-invalid");
-    backendField.removeAttribute("aria-describedby");
-    return;
-  }
-  backendErrorText.textContent = message;
-  backendError.hidden = false;
-  backendField.setAttribute("aria-invalid", "true");
-  backendField.setAttribute("aria-describedby", backendError.id);
 }
 
 function renderEngine(state: "checking" | "ok" | "slow" | "down", text: string): void {
@@ -210,21 +171,24 @@ async function checkEngine(): Promise<void> {
   renderEngine("checking", "Checking the engine…");
   const address = await getBackendUrl(storage);
   const startedAt = performance.now();
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), ENGINE_TIMEOUT_MS);
   try {
-    const response = await fetch(`${address}/health`);
+    const response = await fetch(`${address}/health`, { signal: deadline.signal });
     const elapsed = Math.round(performance.now() - startedAt);
     if (!response.ok) {
       renderEngine("down", "Engine unreachable");
       return;
     }
+    const slow = elapsed >= SLOW_ENGINE_MS;
     renderEngine(
-      elapsed >= SLOW_ENGINE_MS ? "slow" : "ok",
-      elapsed >= SLOW_ENGINE_MS
-        ? `Engine slow · ${elapsed} ms`
-        : `Engine connected · ${elapsed} ms`,
+      slow ? "slow" : "ok",
+      slow ? `Engine slow · ${elapsed} ms` : `Engine connected · ${elapsed} ms`,
     );
   } catch {
     renderEngine("down", "Engine unreachable");
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -235,14 +199,25 @@ engineToggle.addEventListener("click", () => {
 });
 
 // A stale refusal must not outlive the text that caused it.
-backendField.addEventListener("input", () => showBackendError(null));
+backendField.addEventListener("input", () => showError(addressSlot, null));
 
-backendField.addEventListener("change", () => {
+/** Stores the typed address if it is one the extension may use. */
+function saveAddress(): Promise<void> | undefined {
   const value = backendField.value.trim();
   const refusal = reasonToRefuse(value);
-  showBackendError(refusal);
-  if (refusal !== null) return;
-  void setBackendUrl(storage, value).then(checkEngine);
+  showError(addressSlot, refusal);
+  if (refusal !== null) return undefined;
+  return setBackendUrl(storage, value);
+}
+
+backendField.addEventListener("change", () => {
+  void saveAddress()?.then(checkEngine);
+});
+
+// Closing the popup fires no `change`, so an address typed and never blurred
+// would be discarded — and the user would have no way to tell.
+window.addEventListener("pagehide", () => {
+  void saveAddress();
 });
 
 engineTest.addEventListener("click", () => {
@@ -256,7 +231,7 @@ toggle.addEventListener("click", () => {
 });
 
 // A stale error must not outlive the text that caused it.
-input.addEventListener("input", () => showFieldError(null));
+input.addEventListener("input", () => showError(topicSlot, null));
 
 form.addEventListener("submit", (event: SubmitEvent) => {
   event.preventDefault();
@@ -264,15 +239,15 @@ form.addEventListener("submit", (event: SubmitEvent) => {
   // Pressing enter on an empty field is a no-op, not something to be told off
   // for, so it clears any message rather than raising one.
   if (!topic) {
-    showFieldError(null);
+    showError(topicSlot, null);
     return;
   }
   void addTopic(storage, topic).then((result) => {
     if (result.added) {
       input.value = "";
-      showFieldError(null);
+      showError(topicSlot, null);
     } else {
-      showFieldError(`“${result.duplicateOf}” is already on your watchlist.`);
+      showError(topicSlot, `“${result.duplicateOf}” is already on your watchlist.`);
     }
     show(result.topics);
   });

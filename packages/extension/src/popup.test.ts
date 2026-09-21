@@ -18,7 +18,34 @@ function popupMarkup(): string {
 }
 
 function flush(): Promise<void> {
+  // Under fake timers a real setTimeout would never fire, so the clock has to
+  // be nudged instead.
+  if (vi.isFakeTimers()) return vi.advanceTimersByTimeAsync(0);
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * jsdom gives the whole file one `window`, so listeners the popup registers on
+ * it would pile up across tests and a stale instance would answer events meant
+ * for the live one. A real popup gets a fresh window each time it opens; this
+ * gives each instance a listener set of its own.
+ */
+const registeredOnWindow: [string, EventListenerOrEventListenerObject][] = [];
+const addEventListenerToWindow = window.addEventListener.bind(window);
+
+function claimWindowListeners(): void {
+  while (registeredOnWindow.length > 0) {
+    const [type, listener] = registeredOnWindow.pop()!;
+    window.removeEventListener(type, listener);
+  }
+  window.addEventListener = ((
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ) => {
+    registeredOnWindow.push([type, listener]);
+    addEventListenerToWindow(type, listener, options);
+  }) as typeof window.addEventListener;
 }
 
 /** Loads a fresh popup module against the shipped markup and a storage fake. */
@@ -38,6 +65,7 @@ async function openPopup(
   settings: Record<string, unknown> = {},
   fetchImpl: unknown = vi.fn().mockRejectedValue(new Error("no engine in the test")),
 ): Promise<Record<string, unknown>> {
+  claimWindowListeners();
   document.documentElement.replaceChild(document.createElement("body"), document.body);
   document.body.innerHTML = popupMarkup();
 
@@ -396,6 +424,28 @@ describe("the backend address", () => {
     expect(isShown("backend-error")).toBe(true);
   });
 
+  it("keeps an address typed but never blurred, rather than losing it on close", async () => {
+    const store = await openPopup(["Dune 3"]);
+
+    // Closing the popup fires no change event, so a `change` listener alone
+    // would discard what the user just typed.
+    require$<HTMLInputElement>("#backend-url").value = "https://engine.up.railway.app";
+    window.dispatchEvent(new Event("pagehide"));
+    await flush();
+
+    expect(store.backendUrl).toBe("https://engine.up.railway.app");
+  });
+
+  it("does not keep an address it refused when the popup closes", async () => {
+    const store = await openPopup(["Dune 3"]);
+
+    require$<HTMLInputElement>("#backend-url").value = "https://engine.example.com";
+    window.dispatchEvent(new Event("pagehide"));
+    await flush();
+
+    expect(store.backendUrl).toBeUndefined();
+  });
+
   it("clears the refusal once the address is edited", async () => {
     await openPopup(["Dune 3"]);
     await setAddress("https://engine.example.com");
@@ -462,6 +512,27 @@ describe("testing the engine", () => {
     await flush();
 
     expect(engineStatus()).toMatch(/unreachable/i);
+  });
+
+  it("gives up on an engine that accepts the connection and never answers", async () => {
+    // A socket that is accepted but never replies is the failure the status
+    // line exists for; without a deadline the footer would say "checking"
+    // for as long as the popup is open.
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      });
+    });
+    try {
+      await openPopup(["Dune 3"], {}, fetchMock);
+      await vi.advanceTimersByTimeAsync(6_000);
+
+      expect(engineStatus()).toMatch(/unreachable/i);
+      expect(require$("#engine-dot").getAttribute("data-state")).toBe("down");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("checks once on opening, so the footer says something before anything is pressed", async () => {

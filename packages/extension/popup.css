@@ -169,7 +169,8 @@ body {
   font-size: 18px;
   font-weight: 800;
   line-height: 1;
-  letter-spacing: -0.4px;
+  /* The Identity section's wordmark tracking, not display-s's -0.4px. */
+  letter-spacing: -0.5px;
 }
 
 .ns-protection {
@@ -350,11 +351,11 @@ body {
 .ns-field-error {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
-  margin: 10px 0 0;
+  gap: 8px;
+  margin: 12px 0 0;
   font-size: 12px;
-  font-weight: 700;
-  line-height: 1.4;
+  font-weight: 600;
+  line-height: 1.45;
   color: var(--ns-coral-text);
 }
 
@@ -537,21 +538,30 @@ body {
   color: var(--ns-ink-2);
 }
 
+/*
+ * A 32px target, the floor for a control nested in an already-large row. The
+ * underline stays on the text rather than on the button box, which would
+ * otherwise sit well below it.
+ */
 .ns-footer-action {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
-  padding: 2px 0;
+  min-height: 32px;
+  padding: 0 4px;
   border: none;
-  border-bottom: 2px solid var(--ns-teal-text);
   background: none;
   color: var(--ns-teal-text);
   font-family: inherit;
   font-size: 11px;
   font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
 
 .ns-footer-action:hover {
-  border-bottom-color: var(--ns-teal-text-hi);
   color: var(--ns-teal-text-hi);
 }
 
