@@ -15,7 +15,20 @@
           <circle cx="26" cy="32" r="19" fill="#141218" />
         </svg>
       </span>
-      <h1 class="ns-wordmark">No Spoiler</h1>
+      <div class="ns-identity">
+        <h1 class="ns-wordmark">No Spoiler</h1>
+        <p class="ns-protection" id="protection-state"></p>
+      </div>
+      <button
+        class="ns-toggle"
+        id="enabled-toggle"
+        type="button"
+        aria-label="Protection"
+        aria-pressed="true"
+        aria-describedby="protection-state"
+      >
+        <span class="ns-toggle-knob" aria-hidden="true"></span>
+      </button>
     </header>
 
     <main class="ns-main">

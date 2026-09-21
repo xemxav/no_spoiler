@@ -1,24 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addTopic, listTopics, removeTopic, type WatchlistStorage } from "./watchlist.js";
-
-function createFakeStorage(
-  initial: Record<string, unknown> = {},
-  store: Record<string, unknown> = { ...initial },
-): WatchlistStorage {
-  return {
-    get: (keys) => {
-      const result: Record<string, unknown> = {};
-      for (const key of keys) {
-        if (key in store) result[key] = store[key];
-      }
-      return Promise.resolve(result);
-    },
-    set: (items) => {
-      Object.assign(store, items);
-      return Promise.resolve();
-    },
-  };
-}
+import { addTopic, listTopics, removeTopic } from "./watchlist.js";
+import { createFakeStorage } from "./test-support/fake-storage.js";
 
 describe("listTopics", () => {
   it("returns an empty array when nothing is stored", async () => {

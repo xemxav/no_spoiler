@@ -158,6 +158,11 @@ body {
   background: var(--ns-coral);
 }
 
+.ns-identity {
+  flex-grow: 1;
+  min-width: 0;
+}
+
 .ns-wordmark {
   margin: 0;
   font-family: var(--ns-font-display);
@@ -165,6 +170,72 @@ body {
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.4px;
+}
+
+.ns-protection {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ns-teal-text);
+}
+
+.ns-protection[data-state="stopped"] {
+  color: var(--ns-coral-text);
+}
+
+/*
+ * The knob changes colour with the track, so the state survives for anyone who
+ * cannot tell teal from sunken; `aria-pressed` and the line beside it carry it
+ * for anyone who cannot see either.
+ */
+.ns-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 62px;
+  height: 36px;
+  padding: 0;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-pill);
+  background: var(--ns-sunken);
+  cursor: pointer;
+  transition: background var(--ns-t-state);
+}
+
+.ns-toggle[aria-pressed="true"] {
+  background: var(--ns-teal);
+}
+
+/*
+ * Muted, but the knob keeps the position the stored flag puts it in, so the
+ * control never contradicts `aria-pressed`. The line beside it says why it is
+ * not doing anything.
+ */
+.ns-toggle:disabled,
+.ns-toggle:disabled[aria-pressed="true"] {
+  border-color: var(--ns-ink-muted);
+  background: var(--ns-sunken);
+  cursor: default;
+}
+
+.ns-toggle:disabled[aria-pressed="true"] .ns-toggle-knob {
+  background: var(--ns-ink-muted);
+}
+
+.ns-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--ns-r-pill);
+  background: var(--ns-ink-muted);
+  transition: left var(--ns-t-state), background var(--ns-t-state);
+}
+
+.ns-toggle[aria-pressed="true"] .ns-toggle-knob {
+  left: 29px;
+  background: var(--ns-ink);
 }
 
 /* Body */
@@ -368,6 +439,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ns-toggle,
+  .ns-toggle-knob,
   .ns-add-button {
     transition: none;
   }

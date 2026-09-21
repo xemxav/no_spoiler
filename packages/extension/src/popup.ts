@@ -1,4 +1,6 @@
-import { addTopic, createChromeStorage, listTopics, removeTopic } from "./watchlist.js";
+import { addTopic, listTopics, removeTopic } from "./watchlist.js";
+import { isEnabled, setEnabled } from "./settings.js";
+import { createChromeStorage } from "./storage.js";
 
 const storage = createChromeStorage();
 
@@ -9,8 +11,14 @@ const count = document.getElementById("topic-count") as HTMLElement;
 const firstRun = document.getElementById("first-run") as HTMLElement;
 const idleNote = document.getElementById("idle-note") as HTMLElement;
 const listSection = document.getElementById("list-section") as HTMLElement;
+const toggle = document.getElementById("enabled-toggle") as HTMLButtonElement;
+const protectionState = document.getElementById("protection-state") as HTMLElement;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** What the popup is currently showing. Storage is the record; this is the view. */
+let topics: string[] = [];
+let enabled = true;
 
 /** A stroke cross on the 24×24 icon grid the design system sets. */
 function createRemoveIcon(): SVGSVGElement {
@@ -48,33 +56,67 @@ function createRow(topic: string): HTMLLIElement {
   removeButton.setAttribute("aria-label", `Remove ${topic}`);
   removeButton.appendChild(createRemoveIcon());
   removeButton.addEventListener("click", () => {
-    void removeTopic(storage, topic).then(renderTopics);
+    void removeTopic(storage, topic).then(show);
   });
   item.appendChild(removeButton);
 
   return item;
 }
 
-function renderTopics(topics: string[]): void {
+/**
+ * Two things decide whether anything is filtered, and the popup has to say
+ * which. An empty watchlist disables the switch rather than flipping it — the
+ * switch is not what is stopping the extension, and the line beside it says so.
+ */
+function renderProtection(): void {
+  const idle = topics.length === 0;
+  toggle.setAttribute("aria-pressed", String(enabled));
+  toggle.disabled = idle;
+
+  protectionState.textContent = idle
+    ? "Idle — no topics yet"
+    : enabled
+      ? "Protection active on x.com"
+      : "Paused — nothing is being filtered";
+  protectionState.dataset.state = enabled && !idle ? "running" : "stopped";
+}
+
+function render(): void {
   list.replaceChildren(...topics.map(createRow));
   count.textContent = String(topics.length);
 
   // An empty list means the extension is inert, so the popup explains itself
   // instead of showing an empty box.
-  const empty = topics.length === 0;
-  firstRun.hidden = !empty;
-  idleNote.hidden = !empty;
-  listSection.hidden = empty;
+  const idle = topics.length === 0;
+  firstRun.hidden = !idle;
+  idleNote.hidden = !idle;
+  listSection.hidden = idle;
+
+  renderProtection();
 }
+
+function show(updated: string[]): void {
+  topics = updated;
+  render();
+}
+
+toggle.addEventListener("click", () => {
+  enabled = !enabled;
+  renderProtection();
+  void setEnabled(storage, enabled);
+});
 
 form.addEventListener("submit", (event: SubmitEvent) => {
   event.preventDefault();
   const topic = input.value.trim();
   if (!topic) return;
-  void addTopic(storage, topic).then((topics) => {
+  void addTopic(storage, topic).then((updated) => {
     input.value = "";
-    renderTopics(topics);
+    show(updated);
   });
 });
 
-void listTopics(storage).then(renderTopics);
+void Promise.all([listTopics(storage), isEnabled(storage)]).then(([storedTopics, storedEnabled]) => {
+  enabled = storedEnabled;
+  show(storedTopics);
+});

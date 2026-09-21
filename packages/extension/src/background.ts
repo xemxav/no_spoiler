@@ -1,5 +1,6 @@
 import type { JudgeRequest, JudgeResponse, Tweet } from "@no-spoiler/shared";
-import { createChromeStorage, listTopics } from "./watchlist.js";
+import { listTopics } from "./watchlist.js";
+import { createChromeStorage } from "./storage.js";
 
 /**
  * Build-time config, injected by esbuild `--define` (see this package's

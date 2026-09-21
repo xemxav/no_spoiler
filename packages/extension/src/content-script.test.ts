@@ -55,26 +55,60 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+interface Page {
+  /** Writes to storage and notifies the page the way the popup would. */
+  store(patch: Record<string, unknown>): Promise<void>;
+}
+
 /**
  * Loads a fresh content-script module instance against a fresh <body>, so the
  * observer from a previous test can't see the nodes this one appends.
  */
-async function setupPage(sendMessage: (message: unknown) => Promise<unknown>): Promise<void> {
+async function setupPage(
+  sendMessage: (message: unknown) => Promise<unknown>,
+  stored: Record<string, unknown> = { watchlist: ["Lakers vs Celtics 9/19"] },
+): Promise<Page> {
   document.documentElement.replaceChild(document.createElement("body"), document.body);
   document.head.innerHTML = "";
   vi.resetModules();
+
+  const state = { ...stored };
+  type ChangeListener = (changes: Record<string, unknown>, areaName: string) => void;
+  const listeners: ChangeListener[] = [];
   vi.stubGlobal("chrome", {
     storage: {
       local: {
-        get: () => Promise.resolve({ watchlist: ["Lakers vs Celtics 9/19"] }),
-        set: () => Promise.resolve(),
+        get: (keys: string[]) => {
+          const result: Record<string, unknown> = {};
+          for (const key of keys) {
+            if (key in state) result[key] = state[key];
+          }
+          return Promise.resolve(result);
+        },
+        set: (items: Record<string, unknown>) => {
+          Object.assign(state, items);
+          return Promise.resolve();
+        },
       },
-      onChanged: { addListener: () => undefined },
+      onChanged: {
+        addListener: (listener: ChangeListener) => listeners.push(listener),
+      },
     },
     runtime: { sendMessage },
   });
   await import("./content-script.js");
   await wait(0);
+
+  return {
+    async store(patch) {
+      Object.assign(state, patch);
+      const changes = Object.fromEntries(
+        Object.entries(patch).map(([key, newValue]) => [key, { newValue }]),
+      );
+      for (const listener of listeners) listener(changes, "local");
+      await wait(0);
+    },
+  };
 }
 
 function appendTweets(...html: string[]): void {
@@ -110,15 +144,16 @@ function deferredVerdict(): {
 async function setupSpoiler(id: string): Promise<{
   article: HTMLElement;
   sendMessage: ReturnType<typeof vi.fn>;
+  page: Page;
 }> {
   const response: JudgeResponse = { results: { [id]: true } };
   const sendMessage = vi.fn().mockResolvedValue(response);
-  await setupPage(sendMessage);
+  const page = await setupPage(sendMessage);
 
   appendTweets(tweetHtml(id, "erin", "Spoiler-y take."));
   await settle();
 
-  return { article: requireArticle(id), sendMessage };
+  return { article: requireArticle(id), sendMessage, page };
 }
 
 afterEach(() => {
@@ -393,5 +428,63 @@ describe("injected styles", () => {
     for (const selector of classSelectors) {
       expect(selector).toMatch(/^\.no-spoiler-/);
     }
+  });
+});
+
+describe("the master switch", () => {
+  it("covers nothing and judges nothing while the extension is switched off", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ results: { "6001": true } });
+    await setupPage(sendMessage, { watchlist: ["Lakers vs Celtics 9/19"], enabled: false });
+
+    appendTweets(tweetHtml("6001", "frank", "Spoiler-y take."));
+    await settle();
+
+    expect(isHidden(requireArticle("6001"))).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("uncovers posts already covered on the open tab the moment it goes off", async () => {
+    const { article, page } = await setupSpoiler("6002");
+    expect(isHidden(article)).toBe(true);
+
+    await page.store({ enabled: false });
+
+    expect(isHidden(article)).toBe(false);
+  });
+
+  it("covers the posts already on the tab again when it goes back on", async () => {
+    const { article, page } = await setupSpoiler("6003");
+    await page.store({ enabled: false });
+    expect(isHidden(article)).toBe(false);
+
+    await page.store({ enabled: true });
+    await settle();
+
+    expect(isHidden(requireArticle("6003"))).toBe(true);
+  });
+
+  it("keeps the judgment cache across an off/on cycle", async () => {
+    const { sendMessage, page } = await setupSpoiler("6004");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    await page.store({ enabled: false });
+    await page.store({ enabled: true });
+    await settle();
+
+    // The cache describes the page session, not the protection state.
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(isHidden(requireArticle("6004"))).toBe(true);
+  });
+
+  it("keeps a revealed post revealed across an off/on cycle", async () => {
+    const { article, page } = await setupSpoiler("6005");
+    article.querySelector<HTMLButtonElement>(REVEAL_SELECTOR)?.click();
+    expect(isHidden(article)).toBe(false);
+
+    await page.store({ enabled: false });
+    await page.store({ enabled: true });
+    await settle();
+
+    expect(isHidden(requireArticle("6005"))).toBe(false);
   });
 });

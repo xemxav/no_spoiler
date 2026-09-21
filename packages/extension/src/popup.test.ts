@@ -21,11 +21,14 @@ function flush(): Promise<void> {
 }
 
 /** Loads a fresh popup module against the shipped markup and a storage fake. */
-async function openPopup(watchlist: string[] = []): Promise<Record<string, unknown>> {
+async function openPopup(
+  watchlist: string[] = [],
+  settings: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
   document.documentElement.replaceChild(document.createElement("body"), document.body);
   document.body.innerHTML = popupMarkup();
 
-  const store: Record<string, unknown> = { watchlist: [...watchlist] };
+  const store: Record<string, unknown> = { watchlist: [...watchlist], ...settings };
   vi.resetModules();
   vi.stubGlobal("chrome", {
     storage: {
@@ -179,5 +182,72 @@ describe("the accessibility floor", () => {
 
     expect(document.querySelectorAll('[role="button"]')).toHaveLength(0);
     expect(document.querySelector("#topic-list button")?.tagName).toBe("BUTTON");
+  });
+});
+
+function toggle(): HTMLButtonElement {
+  return require$<HTMLButtonElement>("#enabled-toggle");
+}
+
+describe("the master switch", () => {
+  it("reads as on for a fresh install that has never set it", async () => {
+    await openPopup(["Dune 3"]);
+
+    expect(toggle().getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("reflects a stored off", async () => {
+    await openPopup(["Dune 3"], { enabled: false });
+
+    expect(toggle().getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("writes the flag when switched off, leaving the watchlist alone", async () => {
+    const store = await openPopup(["Dune 3"]);
+
+    toggle().click();
+    await flush();
+
+    expect(store.enabled).toBe(false);
+    expect(store.watchlist).toEqual(["Dune 3"]);
+    expect(toggle().getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("writes the flag again when switched back on", async () => {
+    const store = await openPopup(["Dune 3"], { enabled: false });
+
+    toggle().click();
+    await flush();
+
+    expect(store.enabled).toBe(true);
+    expect(toggle().getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("is disabled while the watchlist is empty, because the list is what is stopping it", async () => {
+    await openPopup([]);
+
+    expect(toggle().disabled).toBe(true);
+  });
+
+  it("becomes usable as soon as a topic is added", async () => {
+    await openPopup([]);
+
+    await typeTopic("Dune 3");
+
+    expect(toggle().disabled).toBe(false);
+  });
+
+  it("says in words whether protection is running, and why not when it is not", async () => {
+    await openPopup([]);
+    const state = () => require$("#protection-state").textContent?.trim() ?? "";
+    // The switch is not what is stopping it, so the copy blames the list.
+    expect(state()).toMatch(/no topics/i);
+    expect(toggle().getAttribute("aria-describedby")).toBe("protection-state");
+
+    await openPopup(["Dune 3"], { enabled: false });
+    expect(state()).toMatch(/paused|off/i);
+
+    await openPopup(["Dune 3"]);
+    expect(state()).toMatch(/active/i);
   });
 });

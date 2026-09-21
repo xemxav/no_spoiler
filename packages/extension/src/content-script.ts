@@ -1,5 +1,7 @@
 import type { JudgeResponse, Tweet } from "@no-spoiler/shared";
-import { createChromeStorage, listTopics } from "./watchlist.js";
+import { listTopics } from "./watchlist.js";
+import { isEnabled } from "./settings.js";
+import { createChromeStorage } from "./storage.js";
 import { extractTweet } from "./extract-tweet.js";
 
 const DEBOUNCE_MS = 300;
@@ -311,6 +313,20 @@ function startObserving(): void {
   let buffer: Element[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  function queue(articles: Iterable<Element>): void {
+    let queued = false;
+    for (const article of articles) {
+      if (seen.has(article)) continue;
+      seen.add(article);
+      showAnalysing(article);
+      buffer.push(article);
+      queued = true;
+    }
+    if (!queued) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, DEBOUNCE_MS);
+  }
+
   function flush(): void {
     const batch = buffer;
     buffer = [];
@@ -342,50 +358,58 @@ function startObserving(): void {
   }
 
   observer = new MutationObserver((mutations) => {
-    const newTweets = findNewTweets(mutations, seen);
-    if (newTweets.length === 0) return;
-
-    for (const article of newTweets) {
-      seen.add(article);
-      showAnalysing(article);
-      buffer.push(article);
-    }
-
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(flush, DEBOUNCE_MS);
+    queue(findNewTweets(mutations, seen));
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
-}
 
-function stopObserving(): void {
-  observer?.disconnect();
-  observer = undefined;
+  // Posts already rendered when protection starts. The observer only ever
+  // sees nodes added after it, so without this a spoiler sitting in the
+  // viewport stays readable until X happens to mutate the timeline — which
+  // is the whole of "switching back on resumes protection on this tab".
+  // Anything already judged this session comes back from the cache in flush().
+  queue(document.querySelectorAll(TWEET_SELECTOR));
 }
 
 /**
- * Starts or stops observing based on the current watchlist. X is a
- * single-page app, so this content script stays alive across in-app
- * navigation — it must react to watchlist changes made via the popup while
- * the tab is open, not just check once at injection time, or "no blur when
- * the watchlist is empty" stops holding for the rest of the session.
+ * Stopping has to take the covers off as well as stop adding them: leaving
+ * the page covered until a reload is exactly what the switch exists to avoid.
+ * `judged` and `revealed` are left alone — they describe the page session,
+ * not the protection state, and survive an off/on cycle.
  */
-async function syncWithWatchlist(): Promise<void> {
-  const topics = await listTopics(storage);
-  if (topics.length === 0) {
+function stopObserving(): void {
+  observer?.disconnect();
+  observer = undefined;
+  for (const shield of document.querySelectorAll(`.${SHIELD_CLASS}`)) {
+    shield.remove();
+  }
+}
+
+/**
+ * Starts or stops protecting the feed. X is a single-page app, so this content
+ * script stays alive across in-app navigation — it must react to changes made
+ * via the popup while the tab is open, not just check once at injection time,
+ * or "no cover when the watchlist is empty" stops holding for the rest of the
+ * session. The same listener carries the master switch: no new plumbing.
+ */
+async function syncProtection(): Promise<void> {
+  const [topics, enabled] = await Promise.all([listTopics(storage), isEnabled(storage)]);
+  if (!enabled || topics.length === 0) {
     stopObserving();
   } else {
     startObserving();
   }
 }
 
-syncWithWatchlist().catch((error: unknown) => {
-  console.warn("no-spoiler: failed to read watchlist", error);
-});
+function syncProtectionInBackground(): void {
+  syncProtection().catch((error: unknown) => {
+    console.warn("no-spoiler: failed to read settings", error);
+  });
+}
+
+syncProtectionInBackground();
 
 chrome.storage.onChanged.addListener((_changes, areaName) => {
   if (areaName !== "local") return;
-  syncWithWatchlist().catch((error: unknown) => {
-    console.warn("no-spoiler: failed to read watchlist", error);
-  });
+  syncProtectionInBackground();
 });
