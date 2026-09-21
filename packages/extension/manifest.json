@@ -16,5 +16,10 @@
     }
   ],
   "permissions": ["storage"],
-  "host_permissions": ["https://x.com/*", "https://twitter.com/*", "http://localhost:3210/*"]
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "http://localhost:3210/*",
+    "https://*.up.railway.app/*"
+  ]
 }

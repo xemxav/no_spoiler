@@ -1,6 +1,8 @@
+import type { AddressInfo } from "node:net";
+
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { createApp, type TypeSafeClientLike } from "./app.js";
+import { createApp, resolveListenOptions, type TypeSafeClientLike } from "./app.js";
 
 function makeClient(systemOne: TypeSafeClientLike["systemOne"]): TypeSafeClientLike {
   return { systemOne };
@@ -109,5 +111,37 @@ describe("POST /judge", () => {
 
     expect(res.status).toBe(502);
     expect(res.body).toEqual({ error: "Failed to judge tweets" });
+  });
+});
+
+describe("resolveListenOptions", () => {
+  it("defaults to loopback when HOST is unset, so a local sandbox isn't exposed to the LAN", () => {
+    expect(resolveListenOptions({})).toEqual({ port: 3210, host: "127.0.0.1" });
+  });
+
+  it("uses PORT from the environment, as a platform like Railway injects it", () => {
+    expect(resolveListenOptions({ PORT: "8080" })).toEqual({ port: 8080, host: "127.0.0.1" });
+  });
+
+  it("uses HOST from the environment, which a deployed context must set to 0.0.0.0", () => {
+    expect(resolveListenOptions({ PORT: "8080", HOST: "0.0.0.0" })).toEqual({
+      port: 8080,
+      host: "0.0.0.0",
+    });
+  });
+
+  it("binds the app on the resolved host", async () => {
+    const app = createApp(makeClient(vi.fn()));
+    // PORT=0 lets the OS pick a free port, so this test can't collide with a running sandbox.
+    const { port, host } = resolveListenOptions({ PORT: "0" });
+
+    const address = await new Promise<AddressInfo>((resolveAddress) => {
+      const server = app.listen(port, host, () => {
+        const info = server.address() as AddressInfo;
+        server.close(() => resolveAddress(info));
+      });
+    });
+
+    expect(address.address).toBe("127.0.0.1");
   });
 });
