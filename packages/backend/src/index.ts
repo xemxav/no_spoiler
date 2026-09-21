@@ -36,7 +36,7 @@ loadWorktreeEnvFile();
 
 const { port, host } = resolveListenOptions();
 const client = new TypeSafeClient();
-const app = createApp(client, { authToken: process.env.BACKEND_AUTH_TOKEN });
+const app = createApp(client);
 
 app.listen(port, host, () => {
   console.log(`backend listening on ${host}:${port}`);

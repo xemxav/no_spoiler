@@ -3,16 +3,13 @@ import { createChromeStorage, listTopics } from "./watchlist.js";
 
 /**
  * Build-time config, injected by esbuild `--define` (see this package's
- * `build`/`dev` scripts, which read the `BACKEND_URL` and `BACKEND_AUTH_TOKEN`
- * environment variables). `BACKEND_URL` defaults to the local sandbox backend;
+ * `build`/`dev` scripts, which read the `BACKEND_URL` environment variable).
+ * It defaults to the local sandbox backend;
  * point it at the deployed Railway URL to build against that instead.
- * `BACKEND_AUTH_TOKEN` is empty for the local sandbox, which needs no auth.
  */
 declare const __BACKEND_URL__: string;
-declare const __BACKEND_AUTH_TOKEN__: string;
 
 const BACKEND_URL = __BACKEND_URL__;
-const BACKEND_AUTH_TOKEN = __BACKEND_AUTH_TOKEN__;
 
 const storage = createChromeStorage();
 
@@ -46,10 +43,7 @@ export async function handleJudge(tweets: Tweet[]): Promise<JudgeResponse | { er
     const body: JudgeRequest = { watchlist, tweets };
     const res = await fetch(`${BACKEND_URL}/judge`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(BACKEND_AUTH_TOKEN ? { Authorization: `Bearer ${BACKEND_AUTH_TOKEN}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
