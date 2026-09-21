@@ -1,0 +1,6 @@
+<!-- The blurred disc, full mark. Used above 32px. Geometry: docs/design-system.md, "Identity". -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="No Spoiler">
+  <circle cx="49" cy="32" r="17" fill="#141218" opacity="0.25" />
+  <circle cx="39" cy="32" r="17" fill="#141218" opacity="0.5" />
+  <circle cx="26" cy="32" r="17" fill="#141218" />
+</svg>
