@@ -5,8 +5,10 @@ const SHIELD_SELECTOR = ".no-spoiler-shield";
 const REVEAL_SELECTOR = ".no-spoiler-reveal";
 const PENDING_SELECTOR = ".no-spoiler-pending";
 const BADGE_SELECTOR = ".no-spoiler-badge";
+const PILL_SELECTOR = ".no-spoiler-pill";
 const LEGACY_BLUR_CLASS = "no-spoiler-blur";
 const DEBOUNCE_MS = 300;
+const TWEET_SELECTOR = 'article[data-testid="tweet"]';
 
 // X's own article classes. React rewrites this attribute wholesale from its
 // props whenever it re-renders the article (hover, like/reply state, ...).
@@ -486,5 +488,144 @@ describe("the master switch", () => {
     await settle();
 
     expect(isHidden(requireArticle("6005"))).toBe(false);
+  });
+});
+
+function pill(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(PILL_SELECTOR);
+}
+
+function requirePill(): HTMLElement {
+  const element = pill();
+  if (!element) throw new Error("no pill in the page");
+  return element;
+}
+
+describe("the in-page pill", () => {
+  const quietEngine = () => vi.fn().mockResolvedValue({ results: {} });
+
+  it("shows nothing at all while the watchlist is empty", async () => {
+    await setupPage(quietEngine(), { watchlist: [] });
+
+    expect(pill()).toBeNull();
+  });
+
+  it("shows nothing at all while the extension is switched off", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"], enabled: false });
+
+    expect(pill()).toBeNull();
+  });
+
+  it("rests quietly while the engine is answering, saying how many topics are watched", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3", "Ligue 1"] });
+
+    expect(requirePill().dataset.state).toBe("resting");
+    expect(requirePill().textContent).toContain("2 topics");
+  });
+
+  it("counts one topic in the singular", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    expect(requirePill().textContent).toContain("1 topic watched");
+  });
+
+  it("lives outside the post subtree, where X's re-renders cannot reach it", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    expect(requirePill().closest(TWEET_SELECTOR)).toBeNull();
+    expect(requirePill().parentElement).toBe(document.body);
+  });
+
+  it("carries no actions — those all live in the popup", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    expect(requirePill().querySelectorAll("button, a, input, select, textarea")).toHaveLength(0);
+  });
+
+  it("announces its state rather than leaving it to colour", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    expect(requirePill().getAttribute("role")).toBe("status");
+    expect(requirePill().textContent).toMatch(/no spoiler/i);
+  });
+
+  it("turns loud when a judgment attempt fails, and says nothing is being filtered", async () => {
+    await setupPage(vi.fn().mockResolvedValue({ error: true }), {
+      watchlist: ["Dune 3"],
+    });
+
+    appendTweets(tweetHtml("7001", "gina", "Anything at all."));
+    await settle();
+
+    expect(requirePill().dataset.state).toBe("unreachable");
+    expect(requirePill().textContent).toMatch(/nothing is being filtered/i);
+  });
+
+  it("turns loud when the judge message itself rejects", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await setupPage(vi.fn().mockRejectedValue(new Error("service worker asleep")), {
+      watchlist: ["Dune 3"],
+    });
+
+    appendTweets(tweetHtml("7002", "gina", "Anything at all."));
+    await settle();
+
+    expect(requirePill().dataset.state).toBe("unreachable");
+  });
+
+  it("stays loud until the engine answers again, then goes quiet", async () => {
+    const sendMessage = vi
+      .fn()
+      .mockResolvedValueOnce({ error: true })
+      .mockResolvedValueOnce({ results: { "7004": false } });
+    await setupPage(sendMessage, { watchlist: ["Dune 3"] });
+
+    appendTweets(tweetHtml("7003", "gina", "First batch."));
+    await settle();
+    expect(requirePill().dataset.state).toBe("unreachable");
+
+    appendTweets(tweetHtml("7004", "gina", "Second batch."));
+    await settle();
+
+    expect(requirePill().dataset.state).toBe("resting");
+  });
+
+  it("comes back if X's in-app navigation takes it out of the page", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+    requirePill().remove();
+
+    appendTweets(tweetHtml("7005", "gina", "Navigation landed."));
+    await wait(0);
+
+    expect(pill()).not.toBeNull();
+  });
+
+  it("goes when the switch goes off, and returns when it comes back on", async () => {
+    const page = await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    await page.store({ enabled: false });
+    expect(pill()).toBeNull();
+
+    await page.store({ enabled: true });
+    expect(pill()).not.toBeNull();
+  });
+
+  it("keeps up with the watchlist while the tab is open", async () => {
+    const page = await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    await page.store({ watchlist: ["Dune 3", "Ligue 1", "Severance S3"] });
+
+    expect(requirePill().textContent).toContain("3 topics");
+  });
+
+  it("expands on hover rather than shouting the detail at rest", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    const css = document.head.querySelector("style")?.textContent ?? "";
+    expect(css).toMatch(/\.no-spoiler-pill:hover[^{]*\.no-spoiler-pill-detail/);
+    // The alarm state depends on neither a hover nor a transition having run.
+    expect(css).toMatch(
+      /\.no-spoiler-pill\[data-state="unreachable"\][^{]*\.no-spoiler-pill-detail\s*\{[^}]*transition:\s*none/,
+    );
   });
 });

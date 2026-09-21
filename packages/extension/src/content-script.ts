@@ -10,6 +10,10 @@ const PENDING_CLASS = "no-spoiler-pending";
 const BADGE_CLASS = "no-spoiler-badge";
 const HEADLINE_CLASS = "no-spoiler-headline";
 const REVEAL_CLASS = "no-spoiler-reveal";
+const PILL_CLASS = "no-spoiler-pill";
+const PILL_DOT_CLASS = "no-spoiler-pill-dot";
+const PILL_TITLE_CLASS = "no-spoiler-pill-title";
+const PILL_DETAIL_CLASS = "no-spoiler-pill-detail";
 const TWEET_SELECTOR = 'article[data-testid="tweet"]';
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -56,6 +60,8 @@ function injectStyles(): void {
       inset: 0;
       z-index: 9999;
       box-sizing: border-box;
+      /* Takes the post's own corner radius, whatever X has set it to. */
+      border-radius: inherit;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -133,6 +139,84 @@ function injectStyles(): void {
       outline: 3px solid var(--ns-ink);
       outline-offset: 3px;
     }
+    .${PILL_CLASS} {
+      --ns-ink: #141218;
+      --ns-coral: #FF3D5A;
+      --ns-teal: #00C2A8;
+      position: fixed;
+      bottom: 16px;
+      /* Left, not right: X's message drawer owns the bottom-right on desktop. */
+      left: 16px;
+      z-index: 2147483000;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      max-width: 300px;
+      padding: 8px 14px 8px 11px;
+      border: 2px solid var(--ns-ink);
+      border-radius: 18px;
+      background: #FBF7F0;
+      box-shadow: 3px 3px 0 var(--ns-ink);
+      color: var(--ns-ink);
+      font-family: system-ui, sans-serif;
+      text-align: left;
+    }
+    .${PILL_CLASS}[data-state="unreachable"] {
+      background: var(--ns-coral);
+    }
+    .${PILL_DOT_CLASS} {
+      flex-shrink: 0;
+      width: 9px;
+      height: 9px;
+      border: 1.5px solid var(--ns-ink);
+      border-radius: 999px;
+      background: var(--ns-teal);
+    }
+    .${PILL_CLASS}[data-state="unreachable"] .${PILL_DOT_CLASS} {
+      background: #FBF7F0;
+    }
+    .${PILL_TITLE_CLASS} {
+      display: block;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.1px;
+    }
+    /*
+     * Collapsed with height and opacity rather than \`display: none\`, so the
+     * detail stays in the accessibility tree for anyone who is not hovering.
+     */
+    .${PILL_DETAIL_CLASS} {
+      display: block;
+      max-height: 0;
+      margin-top: 0;
+      opacity: 0;
+      overflow: hidden;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.3;
+      transition:
+        max-height 160ms ease-out,
+        opacity 160ms ease-out,
+        margin-top 160ms ease-out;
+    }
+    .${PILL_CLASS}:hover .${PILL_DETAIL_CLASS} {
+      max-height: 32px;
+      margin-top: 2px;
+      opacity: 1;
+    }
+    /*
+     * The alarm does not animate in and does not collapse. A message this
+     * important must not depend on a transition having run, or on anyone
+     * hovering to see it.
+     */
+    .${PILL_CLASS}[data-state="unreachable"] .${PILL_DETAIL_CLASS} {
+      max-height: none;
+      margin-top: 2px;
+      opacity: 1;
+      transition: none;
+    }
     @media (prefers-reduced-motion: reduce) {
       .${REVEAL_CLASS} {
         transition: none;
@@ -140,6 +224,9 @@ function injectStyles(): void {
       .${REVEAL_CLASS}:active {
         transform: none;
         box-shadow: 4px 4px 0 var(--ns-ink);
+      }
+      .${PILL_DETAIL_CLASS} {
+        transition: none;
       }
     }
   `;
@@ -169,6 +256,82 @@ function createMark(size: number): SVGSVGElement {
     svg.appendChild(circle);
   }
   return svg;
+}
+
+/**
+ * The pill: the only in-page evidence that the extension is running, and the
+ * only place the user learns that it has stopped protecting them. Because the
+ * extension fails open, an unreachable engine is otherwise indistinguishable
+ * from a clean timeline — which is this product's worst failure mode.
+ *
+ * Fixed to the viewport and appended to <body>, well outside any post
+ * subtree: anything inside an article is subject to the same React re-render
+ * that forced the cover element. It carries no controls; every action lives in
+ * the popup.
+ */
+let pill: HTMLElement | undefined;
+let watchedTopics = 0;
+
+/** Whether the most recent judgment attempt reached the engine. */
+let engineReachable = true;
+
+function renderPill(): void {
+  if (!pill) return;
+  pill.dataset.state = engineReachable ? "resting" : "unreachable";
+
+  const title = pill.querySelector(`.${PILL_TITLE_CLASS}`);
+  const detail = pill.querySelector(`.${PILL_DETAIL_CLASS}`);
+  if (!title || !detail) return;
+
+  if (engineReachable) {
+    title.textContent = "No Spoiler";
+    const plural = watchedTopics === 1 ? "topic" : "topics";
+    detail.textContent = `${watchedTopics} ${plural} watched on ${location.hostname}`;
+  } else {
+    title.textContent = "Engine unreachable";
+    detail.textContent = "Nothing is being filtered";
+  }
+}
+
+function showPill(topicCount: number): void {
+  watchedTopics = topicCount;
+  if (!pill) {
+    pill = document.createElement("div");
+    pill.className = PILL_CLASS;
+    // Announced as a state, not as something to interact with.
+    pill.setAttribute("role", "status");
+    pill.setAttribute("aria-live", "polite");
+
+    const dot = document.createElement("span");
+    dot.className = PILL_DOT_CLASS;
+    dot.setAttribute("aria-hidden", "true");
+    pill.appendChild(dot);
+
+    const text = document.createElement("span");
+    const title = document.createElement("span");
+    title.className = PILL_TITLE_CLASS;
+    const detail = document.createElement("span");
+    detail.className = PILL_DETAIL_CLASS;
+    text.append(title, detail);
+    pill.appendChild(text);
+  }
+  if (!pill.isConnected) document.body.appendChild(pill);
+  renderPill();
+}
+
+function hidePill(): void {
+  pill?.remove();
+  pill = undefined;
+}
+
+/**
+ * Mirrors how the background worker drives the toolbar badge: the transition
+ * is made where the verdicts arrive, not tracked separately.
+ */
+function setEngineReachable(reachable: boolean): void {
+  if (engineReachable === reachable) return;
+  engineReachable = reachable;
+  renderPill();
 }
 
 function shieldOf(article: Element): Element | null {
@@ -288,9 +451,11 @@ async function judgeBatch(tweets: Tweet[]): Promise<JudgeMessageResponse> {
 
 function applyResults(extracted: ExtractedTweet[], response: JudgeMessageResponse): void {
   if ("error" in response) {
+    setEngineReachable(false);
     failOpen(extracted);
     return;
   }
+  setEngineReachable(true);
   for (const { tweet, article } of extracted) {
     const isSpoiler = Boolean(response.results[tweet.id]);
     judged.set(tweet.id, isSpoiler);
@@ -301,13 +466,14 @@ function applyResults(extracted: ExtractedTweet[], response: JudgeMessageRespons
 let observer: MutationObserver | undefined;
 let stylesInjected = false;
 
-function startObserving(): void {
-  if (observer) return; // already observing
-
+function startObserving(topicCount: number): void {
+  // Styles first: the pill goes into the page on the next line.
   if (!stylesInjected) {
     injectStyles();
     stylesInjected = true;
   }
+  showPill(topicCount);
+  if (observer) return; // already observing
 
   const seen = new Set<Element>();
   let buffer: Element[] = [];
@@ -352,12 +518,16 @@ function startObserving(): void {
     judgeBatch(extracted.map((e) => e.tweet))
       .then((response) => applyResults(extracted, response))
       .catch((error: unknown) => {
+        setEngineReachable(false);
         failOpen(extracted);
         console.warn("no-spoiler: judge request failed", error);
       });
   }
 
   observer = new MutationObserver((mutations) => {
+    // X is a single-page app: in-app navigation can take our pill out of the
+    // page along with everything else. Put it back.
+    if (pill && !pill.isConnected) document.body.appendChild(pill);
     queue(findNewTweets(mutations, seen));
   });
 
@@ -380,6 +550,7 @@ function startObserving(): void {
 function stopObserving(): void {
   observer?.disconnect();
   observer = undefined;
+  hidePill();
   for (const shield of document.querySelectorAll(`.${SHIELD_CLASS}`)) {
     shield.remove();
   }
@@ -397,7 +568,7 @@ async function syncProtection(): Promise<void> {
   if (!enabled || topics.length === 0) {
     stopObserving();
   } else {
-    startObserving();
+    startObserving(topics.length);
   }
 }
 
