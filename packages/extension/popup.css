@@ -311,6 +311,11 @@ body {
   font-weight: 600;
 }
 
+.ns-input[aria-invalid="true"] {
+  border-color: var(--ns-coral-line);
+  background: var(--ns-coral-wash);
+}
+
 .ns-input::placeholder {
   color: var(--ns-ink-3);
   font-weight: 500;
@@ -336,6 +341,26 @@ body {
 .ns-add-button:active {
   transform: translate(3px, 3px);
   box-shadow: none;
+}
+
+/*
+ * The stroke icon and the wording carry the error alongside the colour, and
+ * `role="alert"` announces it the moment it appears.
+ */
+.ns-field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ns-coral-text);
+}
+
+.ns-field-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 /* Advisory */

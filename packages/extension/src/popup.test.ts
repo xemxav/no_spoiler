@@ -116,6 +116,15 @@ describe("the watchlist", () => {
     expect(listedTopics()).toEqual([]);
   });
 
+  it("scolds nobody for pressing enter on an empty field", async () => {
+    await openPopup([]);
+
+    await typeTopic("   ");
+
+    expect(isShown("topic-error")).toBe(false);
+    expect(require$("#topic-input").getAttribute("aria-invalid")).toBeNull();
+  });
+
   it("removes a topic from storage and from the list", async () => {
     const store = await openPopup(["Dune 3", "Ligue 1"]);
 
@@ -249,5 +258,59 @@ describe("the master switch", () => {
 
     await openPopup(["Dune 3"]);
     expect(state()).toMatch(/active/i);
+  });
+});
+
+describe("a topic already on the list", () => {
+  it("is refused, with a message naming the entry as it is stored", async () => {
+    const store = await openPopup(["Dune 3"]);
+
+    await typeTopic("dune 3");
+
+    expect(store.watchlist).toEqual(["Dune 3"]);
+    expect(listedTopics()).toEqual(["Dune 3"]);
+    expect(isShown("topic-error")).toBe(true);
+    expect(require$("#topic-error").textContent).toContain("Dune 3");
+  });
+
+  it("leaves what was typed in the field, so it can be edited rather than retyped", async () => {
+    await openPopup(["Dune 3"]);
+
+    await typeTopic("dune 3");
+
+    expect(require$<HTMLInputElement>("#topic-input").value).toBe("dune 3");
+  });
+
+  it("marks the field invalid and points it at the message", async () => {
+    await openPopup(["Dune 3"]);
+
+    await typeTopic("dune 3");
+
+    const input = require$<HTMLInputElement>("#topic-input");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("aria-describedby")).toBe("topic-error");
+  });
+
+  it("clears the message as soon as the field is edited", async () => {
+    await openPopup(["Dune 3"]);
+    await typeTopic("dune 3");
+
+    const input = require$<HTMLInputElement>("#topic-input");
+    input.value = "dune 4";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(isShown("topic-error")).toBe(false);
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    expect(input.getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("clears the message once a different topic is accepted", async () => {
+    await openPopup(["Dune 3"]);
+    await typeTopic("dune 3");
+
+    await typeTopic("Severance S3");
+
+    expect(isShown("topic-error")).toBe(false);
+    expect(listedTopics()).toEqual(["Dune 3", "Severance S3"]);
   });
 });

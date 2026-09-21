@@ -13,6 +13,8 @@ const idleNote = document.getElementById("idle-note") as HTMLElement;
 const listSection = document.getElementById("list-section") as HTMLElement;
 const toggle = document.getElementById("enabled-toggle") as HTMLButtonElement;
 const protectionState = document.getElementById("protection-state") as HTMLElement;
+const fieldError = document.getElementById("topic-error") as HTMLElement;
+const fieldErrorText = document.getElementById("topic-error-text") as HTMLElement;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -95,6 +97,25 @@ function render(): void {
   renderProtection();
 }
 
+/**
+ * Wires the field to the message, or unwires it. `aria-describedby` points at
+ * the message only while there is one, so the field is never described by an
+ * empty element.
+ */
+function showFieldError(message: string | null): void {
+  if (message === null) {
+    fieldError.hidden = true;
+    fieldErrorText.textContent = "";
+    input.removeAttribute("aria-invalid");
+    input.removeAttribute("aria-describedby");
+    return;
+  }
+  fieldErrorText.textContent = message;
+  fieldError.hidden = false;
+  input.setAttribute("aria-invalid", "true");
+  input.setAttribute("aria-describedby", fieldError.id);
+}
+
 function show(updated: string[]): void {
   topics = updated;
   render();
@@ -106,13 +127,26 @@ toggle.addEventListener("click", () => {
   void setEnabled(storage, enabled);
 });
 
+// A stale error must not outlive the text that caused it.
+input.addEventListener("input", () => showFieldError(null));
+
 form.addEventListener("submit", (event: SubmitEvent) => {
   event.preventDefault();
   const topic = input.value.trim();
-  if (!topic) return;
-  void addTopic(storage, topic).then((updated) => {
-    input.value = "";
-    show(updated);
+  // Pressing enter on an empty field is a no-op, not something to be told off
+  // for, so it clears any message rather than raising one.
+  if (!topic) {
+    showFieldError(null);
+    return;
+  }
+  void addTopic(storage, topic).then((result) => {
+    if (result.added) {
+      input.value = "";
+      showFieldError(null);
+    } else {
+      showFieldError(`“${result.duplicateOf}” is already on your watchlist.`);
+    }
+    show(result.topics);
   });
 });
 
