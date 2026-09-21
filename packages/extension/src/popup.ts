@@ -1,5 +1,5 @@
 import { addTopic, listTopics, removeTopic } from "./watchlist.js";
-import { isEnabled, setEnabled } from "./settings.js";
+import { getBackendUrl, isEnabled, setBackendUrl, setEnabled } from "./settings.js";
 import { createChromeStorage } from "./storage.js";
 
 const storage = createChromeStorage();
@@ -15,6 +15,21 @@ const toggle = document.getElementById("enabled-toggle") as HTMLButtonElement;
 const protectionState = document.getElementById("protection-state") as HTMLElement;
 const fieldError = document.getElementById("topic-error") as HTMLElement;
 const fieldErrorText = document.getElementById("topic-error-text") as HTMLElement;
+const enginePanel = document.getElementById("engine-panel") as HTMLElement;
+const engineToggle = document.getElementById("engine-toggle") as HTMLButtonElement;
+const engineTest = document.getElementById("engine-test") as HTMLButtonElement;
+const engineStatus = document.getElementById("engine-status") as HTMLElement;
+const engineDot = document.getElementById("engine-dot") as HTMLElement;
+const backendField = document.getElementById("backend-url") as HTMLInputElement;
+const backendError = document.getElementById("backend-error") as HTMLElement;
+const backendErrorText = document.getElementById("backend-error-text") as HTMLElement;
+
+/**
+ * An engine answering more slowly than this is working but degraded. Where the
+ * line falls is a presentation decision, so it lives here rather than in the
+ * settings module.
+ */
+const SLOW_ENGINE_MS = 1000;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -121,6 +136,119 @@ function show(updated: string[]): void {
   render();
 }
 
+/**
+ * The addresses this extension may use as a backend: the hosts it declares
+ * permission for, minus the pages it injects into. Read from the manifest so
+ * there is one list, not a copy of it here that can drift.
+ */
+function backendPatterns(): string[] {
+  const manifest = chrome.runtime.getManifest();
+  const pages = new Set(
+    (manifest.content_scripts ?? []).flatMap((script) => script.matches ?? []),
+  );
+  return (manifest.host_permissions ?? []).filter((pattern: string) => !pages.has(pattern));
+}
+
+/**
+ * A Chrome match pattern, matched on scheme and host only — the path is always
+ * `/*` for a backend, and the address is a origin.
+ */
+function patternAllows(pattern: string, address: URL): boolean {
+  const parsed = /^(\*|https?):\/\/([^/]+)\//.exec(pattern);
+  if (!parsed) return false;
+  const [, scheme, host] = parsed;
+
+  if (scheme !== "*" && `${scheme}:` !== address.protocol) return false;
+  if (host === "*") return true;
+  if (host.startsWith("*.")) return address.host.endsWith(host.slice(1));
+  return address.host === host;
+}
+
+/**
+ * Why the address was refused, or null if it is fine. Requesting permission
+ * for a host outside the declared patterns at runtime is out of scope, so an
+ * address outside them would simply fail every request — saying so beats
+ * leaving the user to debug a silent failure.
+ */
+function reasonToRefuse(value: string): string | null {
+  let address: URL;
+  try {
+    address = new URL(value);
+  } catch {
+    return "That is not an address the extension can use. It needs a full URL, like http://localhost:3210.";
+  }
+
+  const patterns = backendPatterns();
+  if (patterns.some((pattern) => patternAllows(pattern, address))) return null;
+  return `The extension is not allowed to reach that address. It can only reach ${patterns.join(", ")}.`;
+}
+
+function showBackendError(message: string | null): void {
+  if (message === null) {
+    backendError.hidden = true;
+    backendErrorText.textContent = "";
+    backendField.removeAttribute("aria-invalid");
+    backendField.removeAttribute("aria-describedby");
+    return;
+  }
+  backendErrorText.textContent = message;
+  backendError.hidden = false;
+  backendField.setAttribute("aria-invalid", "true");
+  backendField.setAttribute("aria-describedby", backendError.id);
+}
+
+function renderEngine(state: "checking" | "ok" | "slow" | "down", text: string): void {
+  engineDot.dataset.state = state;
+  engineStatus.textContent = text;
+}
+
+/**
+ * Calls the engine's health route, which never touches the judgment client, so
+ * this can be pressed as often as the user likes.
+ */
+async function checkEngine(): Promise<void> {
+  renderEngine("checking", "Checking the engine…");
+  const address = await getBackendUrl(storage);
+  const startedAt = performance.now();
+  try {
+    const response = await fetch(`${address}/health`);
+    const elapsed = Math.round(performance.now() - startedAt);
+    if (!response.ok) {
+      renderEngine("down", "Engine unreachable");
+      return;
+    }
+    renderEngine(
+      elapsed >= SLOW_ENGINE_MS ? "slow" : "ok",
+      elapsed >= SLOW_ENGINE_MS
+        ? `Engine slow · ${elapsed} ms`
+        : `Engine connected · ${elapsed} ms`,
+    );
+  } catch {
+    renderEngine("down", "Engine unreachable");
+  }
+}
+
+engineToggle.addEventListener("click", () => {
+  const open = enginePanel.hidden;
+  enginePanel.hidden = !open;
+  engineToggle.setAttribute("aria-expanded", String(open));
+});
+
+// A stale refusal must not outlive the text that caused it.
+backendField.addEventListener("input", () => showBackendError(null));
+
+backendField.addEventListener("change", () => {
+  const value = backendField.value.trim();
+  const refusal = reasonToRefuse(value);
+  showBackendError(refusal);
+  if (refusal !== null) return;
+  void setBackendUrl(storage, value).then(checkEngine);
+});
+
+engineTest.addEventListener("click", () => {
+  void checkEngine();
+});
+
 toggle.addEventListener("click", () => {
   enabled = !enabled;
   renderProtection();
@@ -150,7 +278,14 @@ form.addEventListener("submit", (event: SubmitEvent) => {
   });
 });
 
-void Promise.all([listTopics(storage), isEnabled(storage)]).then(([storedTopics, storedEnabled]) => {
-  enabled = storedEnabled;
-  show(storedTopics);
-});
+void Promise.all([listTopics(storage), isEnabled(storage), getBackendUrl(storage)]).then(
+  ([storedTopics, storedEnabled, storedAddress]) => {
+    enabled = storedEnabled;
+    backendField.value = storedAddress;
+    show(storedTopics);
+  },
+);
+
+// Story: tell the user whether the engine is reachable without them asking,
+// so a quiet feed is distinguishable from a broken setup.
+void checkEngine();

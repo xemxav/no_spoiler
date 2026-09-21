@@ -463,14 +463,111 @@ body {
   background: var(--ns-sunken);
 }
 
+/* Engine */
+
+.ns-engine {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ns-engine .ns-label,
+.ns-engine .ns-lede {
+  margin: 0;
+}
+
+.ns-primary {
+  height: 52px;
+  margin-top: 2px;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-l);
+  background: var(--ns-teal);
+  box-shadow: var(--ns-shadow-hi);
+  color: var(--ns-ink);
+  font-family: var(--ns-font-display);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--ns-t-state), box-shadow var(--ns-t-state);
+}
+
+.ns-primary:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+}
+
+/* Footer */
+
+.ns-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: var(--ns-border);
+  background: var(--ns-surface);
+}
+
+/* Never the only carrier of the state — the words beside it say the same. */
+.ns-status-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--ns-ink);
+  border-radius: var(--ns-r-pill);
+  background: var(--ns-ink-muted);
+}
+
+.ns-status-dot[data-state="ok"] {
+  background: var(--ns-teal);
+}
+
+.ns-status-dot[data-state="slow"] {
+  background: var(--ns-amber);
+}
+
+.ns-status-dot[data-state="down"] {
+  background: var(--ns-coral);
+}
+
+.ns-status-text {
+  flex-grow: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ns-ink-2);
+}
+
+.ns-footer-action {
+  flex-shrink: 0;
+  padding: 2px 0;
+  border: none;
+  border-bottom: 2px solid var(--ns-teal-text);
+  background: none;
+  color: var(--ns-teal-text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ns-footer-action:hover {
+  border-bottom-color: var(--ns-teal-text-hi);
+  color: var(--ns-teal-text-hi);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ns-toggle,
   .ns-toggle-knob,
-  .ns-add-button {
+  .ns-add-button,
+  .ns-primary {
     transition: none;
   }
   .ns-add-button:active {
     transform: none;
     box-shadow: var(--ns-shadow);
+  }
+  .ns-primary:active {
+    transform: none;
+    box-shadow: var(--ns-shadow-hi);
   }
 }

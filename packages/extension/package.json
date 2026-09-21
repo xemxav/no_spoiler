@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "mkdir -p dist && cp manifest.json popup.html popup.css dist/ && cp -R icons fonts dist/ && (tsc --watch --preserveWatchOutput & esbuild src/content-script.ts src/background.ts --bundle --outdir=dist --format=iife --platform=browser --define:__BACKEND_URL__=\"\\\"${BACKEND_URL:-http://localhost:3210}\\\"\" --watch)",
-    "build": "tsc -p tsconfig.json && esbuild src/content-script.ts src/background.ts --bundle --outdir=dist --format=iife --platform=browser --define:__BACKEND_URL__=\"\\\"${BACKEND_URL:-http://localhost:3210}\\\"\" && cp manifest.json popup.html popup.css dist/ && cp -R icons fonts dist/",
+    "dev": "mkdir -p dist && cp manifest.json popup.html popup.css dist/ && cp -R icons fonts dist/ && (tsc --watch --preserveWatchOutput & esbuild src/content-script.ts src/background.ts src/popup.ts --bundle --outdir=dist --format=iife --platform=browser --define:__BACKEND_URL__=\"\\\"${BACKEND_URL:-http://localhost:3210}\\\"\" --watch)",
+    "build": "tsc -p tsconfig.json && esbuild src/content-script.ts src/background.ts src/popup.ts --bundle --outdir=dist --format=iife --platform=browser --define:__BACKEND_URL__=\"\\\"${BACKEND_URL:-http://localhost:3210}\\\"\" && cp manifest.json popup.html popup.css dist/ && cp -R icons fonts dist/",
     "icons": "node scripts/render-icons.mjs",
     "test": "vitest run",
     "lint": "eslint ."

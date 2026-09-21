@@ -1,27 +1,41 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Tweet } from "@no-spoiler/shared";
+import { DEFAULT_BACKEND_URL } from "./config.js";
 
 const TWEETS: Tweet[] = [{ id: "1", author: "alice", text: "Huge upset in the final." }];
 
-async function loadBackground(fetchImpl: unknown) {
+async function loadBackground(
+  fetchImpl: unknown,
+  stored: Record<string, unknown> = { watchlist: ["Lakers vs Celtics 9/19"] },
+) {
   vi.resetModules();
   const action = {
     setBadgeText: vi.fn().mockResolvedValue(undefined),
     setBadgeBackgroundColor: vi.fn().mockResolvedValue(undefined),
   };
+  const state = { ...stored };
   vi.stubGlobal("chrome", {
     action,
     storage: {
       local: {
-        get: () => Promise.resolve({ watchlist: ["Lakers vs Celtics 9/19"] }),
-        set: () => Promise.resolve(),
+        get: (keys: string[]) => {
+          const result: Record<string, unknown> = {};
+          for (const key of keys) {
+            if (key in state) result[key] = state[key];
+          }
+          return Promise.resolve(result);
+        },
+        set: (items: Record<string, unknown>) => {
+          Object.assign(state, items);
+          return Promise.resolve();
+        },
       },
     },
     runtime: { onMessage: { addListener: () => undefined } },
   });
   vi.stubGlobal("fetch", fetchImpl);
   const { handleJudge } = await import("./background.js");
-  return { handleJudge, action };
+  return { handleJudge, action, state };
 }
 
 afterEach(() => {
@@ -73,5 +87,43 @@ describe("backend-unreachable badge", () => {
 
     expect(result).toEqual({ results: { "1": true } });
     expect(action.setBadgeText).toHaveBeenCalledWith({ text: "" });
+  });
+});
+
+describe("the backend address", () => {
+  const ok = () =>
+    vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ results: {} }) });
+
+  it("posts to the address stored in settings", async () => {
+    const fetchMock = ok();
+    const { handleJudge } = await loadBackground(fetchMock, {
+      watchlist: ["Lakers vs Celtics 9/19"],
+      backendUrl: "https://engine.up.railway.app",
+    });
+
+    await handleJudge(TWEETS);
+
+    expect(fetchMock.mock.calls[0][0]).toBe("https://engine.up.railway.app/judge");
+  });
+
+  it("falls back to the build-time default when none is stored", async () => {
+    const fetchMock = ok();
+    const { handleJudge } = await loadBackground(fetchMock);
+
+    await handleJudge(TWEETS);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${DEFAULT_BACKEND_URL}/judge`);
+  });
+
+  it("reads it per request, so a change in the popup takes effect at once", async () => {
+    const fetchMock = ok();
+    const { handleJudge, state } = await loadBackground(fetchMock);
+
+    await handleJudge(TWEETS);
+    state.backendUrl = "https://engine.up.railway.app";
+    await handleJudge(TWEETS);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${DEFAULT_BACKEND_URL}/judge`);
+    expect(fetchMock.mock.calls[1][0]).toBe("https://engine.up.railway.app/judge");
   });
 });

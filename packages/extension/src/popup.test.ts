@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { DEFAULT_BACKEND_URL } from "./config.js";
 
 // Vitest runs with the package root as its cwd (see vitest.config.ts).
 const POPUP_HTML = readFileSync(resolve(process.cwd(), "popup.html"), "utf8");
@@ -21,9 +22,21 @@ function flush(): Promise<void> {
 }
 
 /** Loads a fresh popup module against the shipped markup and a storage fake. */
+/** The manifest's real host permissions, as the popup reads them at runtime. */
+const MANIFEST = {
+  host_permissions: [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "http://localhost:3210/*",
+    "https://*.up.railway.app/*",
+  ],
+  content_scripts: [{ matches: ["https://x.com/*", "https://twitter.com/*"] }],
+};
+
 async function openPopup(
   watchlist: string[] = [],
   settings: Record<string, unknown> = {},
+  fetchImpl: unknown = vi.fn().mockRejectedValue(new Error("no engine in the test")),
 ): Promise<Record<string, unknown>> {
   document.documentElement.replaceChild(document.createElement("body"), document.body);
   document.body.innerHTML = popupMarkup();
@@ -46,7 +59,9 @@ async function openPopup(
         },
       },
     },
+    runtime: { getManifest: () => MANIFEST },
   });
+  vi.stubGlobal("fetch", fetchImpl);
 
   await import("./popup.js");
   await flush();
@@ -75,6 +90,13 @@ function isShown(id: string): boolean {
   const element = document.getElementById(id);
   if (!element) throw new Error(`popup markup is missing #${id}`);
   return !element.hidden;
+}
+
+async function setAddress(url: string): Promise<void> {
+  const field = require$<HTMLInputElement>("#backend-url");
+  field.value = url;
+  field.dispatchEvent(new Event("change", { bubbles: true }));
+  await flush();
 }
 
 async function typeTopic(topic: string): Promise<void> {
@@ -312,5 +334,153 @@ describe("a topic already on the list", () => {
 
     expect(isShown("topic-error")).toBe(false);
     expect(listedTopics()).toEqual(["Dune 3", "Severance S3"]);
+  });
+});
+
+function engineStatus(): string {
+  return require$("#engine-status").textContent?.trim() ?? "";
+}
+
+/** A fetch that reports a round trip of `ms` on the extension's own clock. */
+function respondIn(ms: number, response: unknown): ReturnType<typeof vi.fn> {
+  let now = 0;
+  vi.stubGlobal("performance", { now: () => now });
+  return vi.fn().mockImplementation(() => {
+    now += ms;
+    return response instanceof Error ? Promise.reject(response) : Promise.resolve(response);
+  });
+}
+
+describe("the backend address", () => {
+  it("shows the build-time default when none has ever been set", async () => {
+    await openPopup(["Dune 3"]);
+
+    expect(require$<HTMLInputElement>("#backend-url").value).toBe(DEFAULT_BACKEND_URL);
+  });
+
+  it("shows the stored address", async () => {
+    await openPopup(["Dune 3"], { backendUrl: "https://engine.up.railway.app" });
+
+    expect(require$<HTMLInputElement>("#backend-url").value).toBe(
+      "https://engine.up.railway.app",
+    );
+  });
+
+  it("stores an address the extension is permitted to reach", async () => {
+    const store = await openPopup(["Dune 3"]);
+
+    await setAddress("https://engine.up.railway.app");
+
+    expect(store.backendUrl).toBe("https://engine.up.railway.app");
+    expect(isShown("backend-error")).toBe(false);
+  });
+
+  it("refuses an address outside the declared host permissions, and says why", async () => {
+    const store = await openPopup(["Dune 3"]);
+
+    await setAddress("https://engine.example.com");
+
+    expect(store.backendUrl).toBeUndefined();
+    expect(isShown("backend-error")).toBe(true);
+    expect(require$("#backend-error").textContent).toMatch(/not allowed to reach/i);
+    // Naming what it can reach is the difference between an explanation and a refusal.
+    expect(require$("#backend-error").textContent).toContain("up.railway.app");
+  });
+
+  it("refuses something that is not an address at all", async () => {
+    const store = await openPopup(["Dune 3"]);
+
+    await setAddress("not a url");
+
+    expect(store.backendUrl).toBeUndefined();
+    expect(isShown("backend-error")).toBe(true);
+  });
+
+  it("clears the refusal once the address is edited", async () => {
+    await openPopup(["Dune 3"]);
+    await setAddress("https://engine.example.com");
+
+    const field = require$<HTMLInputElement>("#backend-url");
+    field.value = "http://localhost:3210";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(isShown("backend-error")).toBe(false);
+  });
+});
+
+describe("testing the engine", () => {
+  it("reports it reachable, with how long it took", async () => {
+    const fetchMock = respondIn(180, { ok: true });
+    await openPopup(["Dune 3"], {}, fetchMock);
+
+    require$<HTMLButtonElement>("#engine-test").click();
+    await flush();
+
+    expect(engineStatus()).toMatch(/connected/i);
+    expect(engineStatus()).toContain("180");
+    expect(require$("#engine-dot").getAttribute("data-state")).toBe("ok");
+  });
+
+  it("calls the health route, which costs no judgment quota", async () => {
+    const fetchMock = respondIn(90, { ok: true });
+    await openPopup(["Dune 3"], { backendUrl: "http://localhost:3210" }, fetchMock);
+
+    require$<HTMLButtonElement>("#engine-test").click();
+    await flush();
+
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toBe("http://localhost:3210/health");
+  });
+
+  it("reports it slow when it answers but takes its time", async () => {
+    const fetchMock = respondIn(1400, { ok: true });
+    await openPopup(["Dune 3"], {}, fetchMock);
+
+    require$<HTMLButtonElement>("#engine-test").click();
+    await flush();
+
+    expect(engineStatus()).toMatch(/slow/i);
+    expect(engineStatus()).toContain("1400");
+    expect(require$("#engine-dot").getAttribute("data-state")).toBe("slow");
+  });
+
+  it("reports it unreachable when the request fails", async () => {
+    const fetchMock = respondIn(50, new Error("connection refused"));
+    await openPopup(["Dune 3"], {}, fetchMock);
+
+    require$<HTMLButtonElement>("#engine-test").click();
+    await flush();
+
+    expect(engineStatus()).toMatch(/unreachable/i);
+    expect(require$("#engine-dot").getAttribute("data-state")).toBe("down");
+  });
+
+  it("reports it unreachable when the health route answers with an error status", async () => {
+    const fetchMock = respondIn(50, { ok: false, status: 502 });
+    await openPopup(["Dune 3"], {}, fetchMock);
+
+    require$<HTMLButtonElement>("#engine-test").click();
+    await flush();
+
+    expect(engineStatus()).toMatch(/unreachable/i);
+  });
+
+  it("checks once on opening, so the footer says something before anything is pressed", async () => {
+    const fetchMock = respondIn(120, { ok: true });
+    await openPopup(["Dune 3"], {}, fetchMock);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(engineStatus()).toMatch(/connected/i);
+  });
+
+  it("opens the engine panel from the footer, as a disclosure", async () => {
+    await openPopup(["Dune 3"]);
+    expect(isShown("engine-panel")).toBe(false);
+
+    const disclosure = require$<HTMLButtonElement>("#engine-toggle");
+    expect(disclosure.getAttribute("aria-controls")).toBe("engine-panel");
+    disclosure.click();
+
+    expect(isShown("engine-panel")).toBe(true);
+    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
   });
 });

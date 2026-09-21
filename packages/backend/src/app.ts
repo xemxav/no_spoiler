@@ -51,6 +51,16 @@ export function createApp(client: TypeSafeClientLike): Express {
   const app = express();
   app.use(express.json());
 
+  /**
+   * Liveness only. It deliberately never reaches the judgment client, so the
+   * extension can call it as often as it likes without spending quota — which
+   * is what makes a "test the engine" button in the popup cheap enough to
+   * press freely.
+   */
+  app.get("/health", (_req: Request, res: Response) => {
+    res.json({ status: "ok" });
+  });
+
   app.post("/judge", async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as Partial<JudgeRequest>;
     const watchlist = body.watchlist ?? [];

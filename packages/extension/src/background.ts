@@ -1,16 +1,7 @@
 import type { JudgeRequest, JudgeResponse, Tweet } from "@no-spoiler/shared";
 import { listTopics } from "./watchlist.js";
+import { getBackendUrl } from "./settings.js";
 import { createChromeStorage } from "./storage.js";
-
-/**
- * Build-time config, injected by esbuild `--define` (see this package's
- * `build`/`dev` scripts, which read the `BACKEND_URL` environment variable).
- * It defaults to the local sandbox backend;
- * point it at the deployed Railway URL to build against that instead.
- */
-declare const __BACKEND_URL__: string;
-
-const BACKEND_URL = __BACKEND_URL__;
 
 const storage = createChromeStorage();
 
@@ -40,9 +31,14 @@ function clearOfflineBadge(): void {
 
 export async function handleJudge(tweets: Tweet[]): Promise<JudgeResponse | { error: true }> {
   try {
-    const watchlist = await listTopics(storage);
+    // Read per request, not once at start-up: a service worker outlives a
+    // change made in the popup, and the user should not have to reload for it.
+    const [watchlist, backendUrl] = await Promise.all([
+      listTopics(storage),
+      getBackendUrl(storage),
+    ]);
     const body: JudgeRequest = { watchlist, tweets };
-    const res = await fetch(`${BACKEND_URL}/judge`, {
+    const res = await fetch(`${backendUrl}/judge`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
