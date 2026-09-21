@@ -31,16 +31,20 @@ function buildResults(tweets: Tweet[], isSpoiler: (tweet: Tweet) => boolean): Ju
 }
 
 /**
- * Listen options for a deployed context: the host is always `0.0.0.0` (a
- * platform like Railway routes to the container's external interface, so
- * binding loopback only would be unreachable) and the port comes from the
- * platform-injected `PORT`, falling back to the sandbox default.
+ * Listen options, from `PORT` and `HOST`.
+ *
+ * `HOST` defaults to loopback so a local sandbox is reachable from this machine
+ * only — `/judge` has no auth, and binding every interface would let anyone on
+ * the same network spend the owner's TypeSafe key. A deployed context must set
+ * `HOST=0.0.0.0` explicitly: a platform like Railway routes to the container's
+ * external interface, so loopback there is unreachable. That failure is loud
+ * (the deploy doesn't answer) where the reverse default fails silently.
  */
 export function resolveListenOptions(env: NodeJS.ProcessEnv = process.env): {
   port: number;
   host: string;
 } {
-  return { port: Number(env.PORT ?? 3210), host: "0.0.0.0" };
+  return { port: Number(env.PORT ?? 3210), host: env.HOST ?? "127.0.0.1" };
 }
 
 export function createApp(client: TypeSafeClientLike): Express {

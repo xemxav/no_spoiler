@@ -115,15 +115,22 @@ describe("POST /judge", () => {
 });
 
 describe("resolveListenOptions", () => {
-  it("defaults to port 3210 on 0.0.0.0 when PORT is unset", () => {
-    expect(resolveListenOptions({})).toEqual({ port: 3210, host: "0.0.0.0" });
+  it("defaults to loopback when HOST is unset, so a local sandbox isn't exposed to the LAN", () => {
+    expect(resolveListenOptions({})).toEqual({ port: 3210, host: "127.0.0.1" });
   });
 
   it("uses PORT from the environment, as a platform like Railway injects it", () => {
-    expect(resolveListenOptions({ PORT: "8080" })).toEqual({ port: 8080, host: "0.0.0.0" });
+    expect(resolveListenOptions({ PORT: "8080" })).toEqual({ port: 8080, host: "127.0.0.1" });
   });
 
-  it("binds the app on 0.0.0.0 with the resolved options", async () => {
+  it("uses HOST from the environment, which a deployed context must set to 0.0.0.0", () => {
+    expect(resolveListenOptions({ PORT: "8080", HOST: "0.0.0.0" })).toEqual({
+      port: 8080,
+      host: "0.0.0.0",
+    });
+  });
+
+  it("binds the app on the resolved host", async () => {
     const app = createApp(makeClient(vi.fn()));
     // PORT=0 lets the OS pick a free port, so this test can't collide with a running sandbox.
     const { port, host } = resolveListenOptions({ PORT: "0" });
@@ -135,6 +142,6 @@ describe("resolveListenOptions", () => {
       });
     });
 
-    expect(address.address).toBe("0.0.0.0");
+    expect(address.address).toBe("127.0.0.1");
   });
 });
