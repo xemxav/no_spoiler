@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>No Spoiler — Maquettes UI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0; padding: 40px 32px 80px;
+    font-family: 'Manrope', system-ui, sans-serif;
+    background: #E9E4DA; color: #141218;
+  }
+  .page { max-width: 1400px; margin: 0 auto; }
+  h1 {
+    font-family: 'Bricolage Grotesque', 'Manrope', sans-serif;
+    font-weight: 800; font-size: 40px; letter-spacing: -1.2px; margin: 0 0 12px;
+  }
+  .lede { max-width: 62ch; font-size: 14px; line-height: 1.6; color: #3C3747; margin: 0 0 8px; }
+  .lede code { background: #FBF7F0; border: 1px solid #C9C1B2; border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+  .warn {
+    max-width: 62ch; margin: 20px 0 0; padding: 12px 16px;
+    border: 2px solid #141218; border-radius: 14px; background: #FFD84D;
+    font-size: 13px; font-weight: 700; line-height: 1.5;
+  }
+  h2 {
+    font-family: 'Bricolage Grotesque', 'Manrope', sans-serif;
+    font-weight: 800; font-size: 22px; letter-spacing: -0.5px;
+    margin: 56px 0 20px; padding-bottom: 10px; border-bottom: 2px solid #141218;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .board { margin: 0; }
+  figcaption { margin-bottom: 10px; max-width: 420px; }
+  figcaption b {
+    display: block; font-size: 13px; font-weight: 800; letter-spacing: -0.2px;
+  }
+  figcaption span {
+    display: block; font-size: 11px; font-weight: 600; line-height: 1.45;
+    color: #5C5668; margin-top: 3px;
+  }
+  .frame {
+    border: 2px solid #141218; border-radius: 20px; overflow: hidden;
+    box-shadow: 6px 6px 0 #141218; background: #FBF7F0; width: max-content;
+  }
+  a { color: #0A7263; } a:hover { color: #075548; }
+</style>
+</head>
+<body>
+<div class="page">
+<h1>No Spoiler — Maquettes UI</h1>
+<p class="lede">
+  Rendu statique des maquettes de la refonte P0. Généré depuis le canvas de conception ; ce
+  fichier est autonome et n'a besoin d'aucun runtime.
+</p>
+<p class="lede">
+  Spec : issue #10. Tickets : #12 à #18. Reporté : <code>docs/extension-ui-backlog.md</code>.
+</p>
+<p class="warn">
+  Ceci est une référence visuelle, pas une autorité. Pour toute couleur, token, composant ou
+  règle d'accessibilité, <code>docs/design-system.md</code> fait foi — en cas de désaccord avec
+  cette page, c'est lui qui gagne.
+</p>
+<section id="popup">
+<h2>Popup</h2>
+<div class="row">
+<figure class="board" id="main">
+<figcaption><b>Watchlist active</b><span>L&#x27;état courant : sujets surveillés, ajout, statut du moteur en pied.</span></figcaption>
+<div class="frame">
+<div style="width: 380px; height: 600px; box-sizing: border-box; background: #FBF7F0; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; gap: 10px; padding: 16px 20px 14px 20px; border-bottom: 2px solid #141218; background: #FFFFFF;">
+    <div style="width: 34px; height: 34px; border-radius: 11px; background: #FF3D5A; border: 2px solid #141218; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;">
+      <svg width="21" height="21" viewBox="0 0 64 64" aria-hidden="true"><circle cx="49" cy="32" r="17" fill="#141218" opacity="0.25"></circle><circle cx="39" cy="32" r="17" fill="#141218" opacity="0.5"></circle><circle cx="26" cy="32" r="17" fill="#141218"></circle></svg>
+    </div>
+    <div style="flex-grow: 1; min-width: 0;">
+      <div style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -0.4px; line-height: 1;">No Spoiler</div>
+      <div style="font-size: 11px; font-weight: 700; color: #0A7263; margin-top: 4px;">Protection active sur x.com</div>
+    </div>
+    <button type="button" aria-label="Désactiver la protection" style="width: 62px; height: 36px; border-radius: 999px; border: 2px solid #141218; background: #00C2A8; padding: 0; position: relative; cursor: pointer; flex-shrink: 0;">
+      <span style="position: absolute; top: 3px; left: 29px; width: 26px; height: 26px; border-radius: 999px; background: #141218; display: block;"></span>
+    </button>
+  </div>
+
+  <div style="padding: 20px 20px 0 20px;">
+    <label for="topic-input" style="display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #5C5668; margin-bottom: 8px;">Ajouter un sujet</label>
+    <div style="display: flex; gap: 8px;">
+      <input id="topic-input" type="text" placeholder="Dune 3, Ligue 1, élections…" style="flex-grow: 1; min-width: 0; height: 46px; box-sizing: border-box; border: 2px solid #141218; border-radius: 14px; background: #FFFFFF; padding: 0 14px; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; color: #141218;">
+      <button type="submit" aria-label="Ajouter le sujet" style="width: 46px; height: 46px; flex-shrink: 0; border: 2px solid #141218; border-radius: 14px; background: #FFD84D; box-shadow: 3px 3px 0 #141218; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#141218" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 10px; padding: 24px 20px 12px 20px;">
+    <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #5C5668;">Ma watchlist</div>
+    <div style="border: 2px solid #141218; border-radius: 999px; background: #FF3D5A; font-size: 10px; font-weight: 800; padding: 2px 8px;">4</div>
+    <div style="flex-grow: 1; height: 2px; background: #E4DDD0;"></div>
+  </div>
+
+  <div style="flex-grow: 1; overflow: hidden; padding: 0 20px; display: flex; flex-direction: column; gap: 9px;">
+
+    <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #141218; border-radius: 14px; background: #FFFFFF; padding: 11px 11px 11px 15px;">
+      <span style="flex-grow: 1; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Dune 3</span>
+      <button type="button" aria-label="Retirer Dune 3" style="width: 32px; height: 32px; flex-shrink: 0; border: 2px solid #141218; border-radius: 10px; background: #FBF7F0; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#141218" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+      </button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #141218; border-radius: 14px; background: #FFFFFF; padding: 11px 11px 11px 15px;">
+      <span style="flex-grow: 1; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ligue 1 — résultats</span>
+      <button type="button" aria-label="Retirer Ligue 1 — résultats" style="width: 32px; height: 32px; flex-shrink: 0; border: 2px solid #141218; border-radius: 10px; background: #FBF7F0; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#141218" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+      </button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #141218; border-radius: 14px; background: #FFFFFF; padding: 11px 11px 11px 15px;">
+      <span style="flex-grow: 1; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Severance S3</span>
+      <button type="button" aria-label="Retirer Severance S3" style="width: 32px; height: 32px; flex-shrink: 0; border: 2px solid #141218; border-radius: 10px; background: #FBF7F0; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#141218" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+      </button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #141218; border-radius: 14px; background: #FFFFFF; padding: 11px 11px 11px 15px;">
+      <span style="flex-grow: 1; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Élections législatives</span>
+      <button type="button" aria-label="Retirer Élections législatives" style="width: 32px; height: 32px; flex-shrink: 0; border: 2px solid #141218; border-radius: 10px; background: #FBF7F0; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#141218" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+      </button>
+    </div>
+
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-top: 2px solid #141218; background: #FFFFFF;">
+    <span style="width: 9px; height: 9px; border-radius: 999px; background: #00C2A8; border: 1.5px solid #141218; flex-shrink: 0;"></span>
+    <span style="flex-grow: 1; font-size: 11px; font-weight: 700; color: #3C3747;">Moteur connecté · 180 ms</span>
+    <a href="#settings" style="font-size: 11px; font-weight: 800; text-decoration: none; border-bottom: 2px solid #0A7263;">Moteur</a>
+  </div>
+
+</div>
+</div>
+</figure>
+<figure class="board" id="empty">
+<figcaption><b>Premier lancement</b><span>Watchlist vide. L&#x27;interrupteur est désactivé : ce n&#x27;est pas lui qui bloque.</span></figcaption>
+<div class="frame">
+<div style="width: 380px; height: 600px; box-sizing: border-box; background: #FBF7F0; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; gap: 10px; padding: 16px 20px 14px 20px; border-bottom: 2px solid #141218; background: #FFFFFF;">
+    <div style="width: 34px; height: 34px; border-radius: 11px; background: #E4DDD0; border: 2px solid #141218; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;">
+      <svg width="21" height="21" viewBox="0 0 64 64" aria-hidden="true"><circle cx="49" cy="32" r="17" fill="#141218" opacity="0.22"></circle><circle cx="39" cy="32" r="17" fill="#141218" opacity="0.45"></circle><circle cx="26" cy="32" r="17" fill="#141218" opacity="0.85"></circle></svg>
+    </div>
+    <div style="flex-grow: 1; min-width: 0;">
+      <div style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -0.4px; line-height: 1;">No Spoiler</div>
+      <div style="font-size: 11px; font-weight: 700; color: #8A2530; margin-top: 4px;">En veille — aucun sujet</div>
+    </div>
+    <button type="button" aria-label="Activer la protection" disabled style="width: 62px; height: 36px; border-radius: 999px; border: 2px solid #9A94A6; background: #EFEAE0; padding: 0; position: relative; flex-shrink: 0;">
+      <span style="position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 999px; background: #9A94A6; display: block;"></span>
+    </button>
+  </div>
+
+  <div style="padding: 34px 24px 0 24px;">
+    <div style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 32px; line-height: 1.02; letter-spacing: -0.9px;">Dis-nous ce que<br>tu ne veux <span style="background: #FF3D5A; padding: 0 7px; border-radius: 7px;">pas</span><br>voir.</div>
+    <p style="margin: 16px 0 0 0; font-size: 13px; font-weight: 500; line-height: 1.55; color: #3C3747;">Les posts qui parlent de tes sujets sont floutés avant que tu aies le temps de les lire. Rien n'est supprimé : tu peux toujours révéler.</p>
+  </div>
+
+  <div style="padding: 28px 24px 0 24px;">
+    <label for="first-topic" style="display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #5C5668; margin-bottom: 9px;">Premier sujet</label>
+    <input id="first-topic" type="text" placeholder="Ex. la finale de la Coupe" style="width: 100%; box-sizing: border-box; height: 52px; border: 2px solid #141218; border-radius: 16px; background: #FFFFFF; padding: 0 16px; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; color: #141218; box-shadow: 4px 4px 0 #141218;">
+    <button type="submit" style="width: 100%; margin-top: 12px; height: 52px; border: 2px solid #141218; border-radius: 16px; background: #00C2A8; box-shadow: 4px 4px 0 #141218; font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-size: 16px; font-weight: 800; color: #141218; cursor: pointer;">Protéger mon fil</button>
+  </div>
+
+  <div style="padding: 24px 24px 0 24px;">
+    <div style="border: 2px dashed #C9C1B2; border-radius: 16px; padding: 14px 16px;">
+      <div style="font-size: 12px; font-weight: 700; line-height: 1.5; color: #3C3747;">Tant que la liste est vide, l'extension n'analyse rien et ne touche pas à ton fil.</div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1;"></div>
+
+  <div style="display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-top: 2px solid #141218; background: #FFFFFF;">
+    <span style="width: 9px; height: 9px; border-radius: 999px; background: #00C2A8; border: 1.5px solid #141218; flex-shrink: 0;"></span>
+    <span style="flex-grow: 1; font-size: 11px; font-weight: 700; color: #3C3747;">Moteur connecté</span>
+    <a href="#settings" style="font-size: 11px; font-weight: 800; text-decoration: none; border-bottom: 2px solid #0A7263;">Moteur</a>
+  </div>
+
+</div>
+</div>
+</figure>
+<figure class="board" id="settings">
+<figcaption><b>Moteur d&#x27;analyse</b><span>Adresse configurable, test à la demande, et les trois états de statut.</span></figcaption>
+<div class="frame">
+<div style="width: 380px; height: 600px; box-sizing: border-box; background: #FBF7F0; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 2px solid #141218; background: #FFFFFF;">
+    <a href="#main" aria-label="Retour à la watchlist" style="width: 34px; height: 34px; border: 2px solid #141218; border-radius: 11px; background: #FBF7F0; display: flex; align-items: center; justify-content: center; flex-shrink: 0; text-decoration: none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#141218" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <div style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -0.4px;">Moteur d'analyse</div>
+  </div>
+
+  <div style="padding: 22px 20px 0 20px;">
+    <p style="margin: 0 0 18px 0; font-size: 13px; font-weight: 500; line-height: 1.55; color: #3C3747;">C'est le service qui décide si un post est un spoiler. Sans lui, rien n'est analysé et les posts restent floutés par précaution.</p>
+
+    <label for="backend-url" style="display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #5C5668; margin-bottom: 9px;">Adresse</label>
+    <input id="backend-url" type="text" value="http://localhost:3210" style="width: 100%; box-sizing: border-box; height: 48px; border: 2px solid #141218; border-radius: 15px; background: #FFFFFF; padding: 0 15px; font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600; color: #141218;">
+    <button type="button" style="width: 100%; margin-top: 10px; height: 48px; border: 2px solid #141218; border-radius: 15px; background: #00C2A8; box-shadow: 4px 4px 0 #141218; font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-size: 15px; font-weight: 800; color: #141218; cursor: pointer;">Tester la connexion</button>
+  </div>
+
+  <div style="padding: 24px 20px 0 20px;">
+    <div style="border: 2px solid #141218; border-radius: 16px; background: #00C2A8; box-shadow: 4px 4px 0 #141218; padding: 16px;">
+      <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; margin-bottom: 7px;">État actuel</div>
+      <div style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 24px; letter-spacing: -0.5px; line-height: 1.1;">Connecté · 180 ms</div>
+      <div style="font-size: 12px; font-weight: 600; margin-top: 6px;">Dernier test il y a quelques secondes</div>
+    </div>
+  </div>
+
+  <div style="padding: 24px 20px 0 20px;">
+    <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #5C5668; margin-bottom: 10px;">Les trois états</div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #141218; border-radius: 13px; background: #FFFFFF; padding: 11px 13px;">
+        <span style="width: 10px; height: 10px; border-radius: 999px; background: #00C2A8; border: 1.5px solid #141218; flex-shrink: 0;"></span>
+        <span style="flex-grow: 1; font-size: 12px; font-weight: 700;">Connecté</span>
+        <span style="font-size: 11px; font-weight: 600; color: #5C5668;">&lt; 1 s</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #141218; border-radius: 13px; background: #FFFFFF; padding: 11px 13px;">
+        <span style="width: 10px; height: 10px; border-radius: 999px; background: #FFD84D; border: 1.5px solid #141218; flex-shrink: 0;"></span>
+        <span style="flex-grow: 1; font-size: 12px; font-weight: 700;">Lent</span>
+        <span style="font-size: 11px; font-weight: 600; color: #5C5668;">&gt; 1 s</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #141218; border-radius: 13px; background: #FFFFFF; padding: 11px 13px;">
+        <span style="width: 10px; height: 10px; border-radius: 999px; background: #FF3D5A; border: 1.5px solid #141218; flex-shrink: 0;"></span>
+        <span style="flex-grow: 1; font-size: 12px; font-weight: 700;">Injoignable</span>
+        <span style="font-size: 11px; font-weight: 600; color: #5C5668;">timeout / 5xx</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1;"></div>
+
+</div>
+</div>
+</figure>
+<figure class="board" id="duplicate">
+<figcaption><b>Détail — sujet déjà présent</b><span>Le champ d&#x27;ajout en état d&#x27;erreur. Ticket #16.</span></figcaption>
+<div class="frame">
+<div style="width: 380px; height: 190px; box-sizing: border-box; background: #FBF7F0; padding: 20px; display: flex; flex-direction: column;">
+
+  <label for="dup-input" style="display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #5C5668; margin-bottom: 8px;">Ajouter un sujet</label>
+  <div style="display: flex; gap: 8px;">
+    <input id="dup-input" type="text" value="dune 3" aria-invalid="true" aria-describedby="dup-error" style="flex-grow: 1; min-width: 0; height: 46px; box-sizing: border-box; border: 2px solid #C42038; border-radius: 14px; background: #FFF1F3; padding: 0 14px; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; color: #141218;">
+    <button type="submit" aria-label="Ajouter le sujet" style="width: 46px; height: 46px; flex-shrink: 0; border: 2px solid #141218; border-radius: 14px; background: #FFD84D; box-shadow: 3px 3px 0 #141218; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#141218" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+    </button>
+  </div>
+
+  <div id="dup-error" style="display: flex; align-items: flex-start; gap: 7px; margin-top: 10px;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C42038" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16.5v.01"></path></svg>
+    <span style="font-size: 12px; font-weight: 700; line-height: 1.4; color: #A81B2F;">« Dune 3 » est déjà dans ta liste.</span>
+  </div>
+
+  <div style="flex-grow: 1;"></div>
+
+  <div style="font-size: 11px; font-weight: 600; line-height: 1.4; color: #5C5668;">La comparaison ignore la casse et les espaces de bord.</div>
+
+</div>
+</div>
+</figure>
+</div>
+</section>
+<section id="feed">
+<h2>Dans le fil X</h2>
+<div class="row">
+<figure class="board" id="overlay">
+<figcaption><b>Analyse et post masqué</b><span>Ticket #13. Pas d&#x27;état erreur par poste : le fail-open reste.</span></figcaption>
+<div class="frame">
+<div style="width: 720px; height: 500px; box-sizing: border-box; background: #FFFFFF; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px;">
+
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: #5C5668;">Colonne de fil x.com</span>
+    <span style="flex-grow: 1; height: 2px; background: #EDE7DC;"></span>
+  </div>
+
+  <div style="position: relative; border: 2px solid #E1E8ED; border-radius: 18px; overflow: hidden; height: 168px; flex-shrink: 0;">
+    <div style="filter: blur(3px); padding: 16px 18px; display: flex; gap: 12px;">
+      <div style="width: 42px; height: 42px; border-radius: 999px; background: #C9D6DE; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; min-width: 0;">
+        <div style="display: flex; gap: 6px; align-items: baseline;">
+          <span style="font-size: 14px; font-weight: 800; color: #0F1419;">Ciné Hebdo</span>
+          <span style="font-size: 13px; color: #536471;">@cinehebdo · 12 min</span>
+        </div>
+        <p style="margin: 6px 0 0 0; font-size: 15px; line-height: 1.42; color: #0F1419;">On vient de sortir de la projection presse et franchement la scène du troisième acte change tout ce qu'on croyait savoir sur le personnage de…</p>
+      </div>
+    </div>
+    <div style="position: absolute; top: 12px; right: 14px; display: flex; align-items: center; gap: 8px; border: 2px solid #141218; border-radius: 999px; background: #FFFFFF; padding: 6px 12px 6px 9px; box-shadow: 3px 3px 0 #141218;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#141218" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"></path></svg>
+      <span style="font-size: 11px; font-weight: 800;">Analyse en cours…</span>
+    </div>
+    <div style="position: absolute; left: 0; bottom: 0; height: 4px; width: 62%; background: #FFD84D; border-top: 2px solid #141218;"></div>
+  </div>
+
+  <div style="position: relative; border: 2px solid #141218; border-radius: 18px; overflow: hidden; height: 188px; flex-shrink: 0; box-shadow: 5px 5px 0 #141218;">
+    <div style="filter: blur(11px); padding: 16px 18px; display: flex; gap: 12px;">
+      <div style="width: 42px; height: 42px; border-radius: 999px; background: #C9D6DE; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; min-width: 0;">
+        <div style="display: flex; gap: 6px; align-items: baseline;">
+          <span style="font-size: 14px; font-weight: 800; color: #0F1419;">Sport Direct</span>
+          <span style="font-size: 13px; color: #536471;">@sportdirect · 3 min</span>
+        </div>
+        <p style="margin: 6px 0 0 0; font-size: 15px; line-height: 1.42; color: #0F1419;">FIN DU MATCH — quel scénario complètement fou au Parc, avec ce but à la 94e qui vient tout renverser après le penalty raté de…</p>
+      </div>
+    </div>
+    <div style="position: absolute; inset: 0; background: rgba(251, 247, 240, 0.87); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 13px; padding: 0 24px; box-sizing: border-box;">
+      <div style="display: flex; align-items: center; gap: 8px; border: 2px solid #141218; border-radius: 999px; background: #FF3D5A; padding: 5px 13px;">
+        <svg width="15" height="15" viewBox="0 0 64 64" aria-hidden="true"><circle cx="44" cy="32" r="19" fill="#141218" opacity="0.4"></circle><circle cx="26" cy="32" r="19" fill="#141218"></circle></svg>
+        <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;">Spoiler détecté</span>
+      </div>
+      <div style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px; text-align: center;">Ce post parle d'un sujet que tu évites.</div>
+      <button type="button" style="height: 46px; padding: 0 26px; border: 2px solid #141218; border-radius: 14px; background: #00C2A8; box-shadow: 4px 4px 0 #141218; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 800; color: #141218; cursor: pointer;">Révéler</button>
+    </div>
+  </div>
+
+  <div style="border: 2px dashed #C9C1B2; border-radius: 14px; padding: 12px 14px;">
+    <div style="font-size: 11px; font-weight: 700; line-height: 1.45; color: #3C3747;">Moteur injoignable : <strong>aucun état par poste</strong>. Le fail-open livré en #8 affiche les posts normalement — c'est la pastille du fil qui signale que plus rien n'est filtré.</div>
+  </div>
+
+</div>
+</div>
+</figure>
+<figure class="board" id="badge">
+<figcaption><b>Pastille « extension active »</b><span>Ticket #18. Discrète au repos, insistante quand rien n&#x27;est filtré.</span></figcaption>
+<div class="frame">
+<div style="width: 720px; height: 440px; box-sizing: border-box; background: #FFFFFF; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px;">
+
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: #5C5668;">Pastille flottante · bas-gauche du fil, 16 px de marge</span>
+    <span style="flex-grow: 1; height: 2px; background: #EDE7DC;"></span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; flex-grow: 1;">
+
+    <div style="border: 2px solid #E1E8ED; border-radius: 16px; background: #F7F9FA; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #536471;">Au repos</div>
+      <div style="flex-grow: 1; display: flex; align-items: flex-end;">
+        <div style="display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 11px; border: 2px solid #141218; border-radius: 999px; background: #FBF7F0; box-shadow: 3px 3px 0 #141218;">
+          <span style="width: 9px; height: 9px; border-radius: 999px; background: #00C2A8; border: 1.5px solid #141218; flex-shrink: 0;"></span>
+          <span style="font-size: 12px; font-weight: 800; letter-spacing: -0.1px;">No Spoiler</span>
+        </div>
+      </div>
+      <div style="font-size: 11px; font-weight: 600; line-height: 1.4; color: #536471;">Point turquoise = le moteur répond et la watchlist n'est pas vide.</div>
+    </div>
+
+    <div style="border: 2px solid #E1E8ED; border-radius: 16px; background: #F7F9FA; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #536471;">Au repos — variante minimale</div>
+      <div style="flex-grow: 1; display: flex; align-items: flex-end;">
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 2px solid #141218; border-radius: 999px; background: #00C2A8; box-shadow: 3px 3px 0 #141218; overflow: hidden;">
+          <svg width="19" height="19" viewBox="0 0 64 64" aria-hidden="true"><circle cx="46" cy="32" r="18" fill="#141218" opacity="0.35"></circle><circle cx="26" cy="32" r="18" fill="#141218"></circle></svg>
+        </div>
+      </div>
+      <div style="font-size: 11px; font-weight: 600; line-height: 1.4; color: #536471;">Même information, zéro texte. Se replie ainsi après quelques secondes si tu préfères.</div>
+    </div>
+
+    <div style="border: 2px solid #E1E8ED; border-radius: 16px; background: #F7F9FA; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #536471;">Au survol</div>
+      <div style="flex-grow: 1; display: flex; align-items: flex-end;">
+        <div style="display: inline-flex; align-items: center; gap: 10px; padding: 9px 15px 9px 12px; border: 2px solid #141218; border-radius: 18px; background: #FBF7F0; box-shadow: 4px 4px 0 #141218;">
+          <span style="width: 9px; height: 9px; border-radius: 999px; background: #00C2A8; border: 1.5px solid #141218; flex-shrink: 0;"></span>
+          <span style="display: block;">
+            <span style="display: block; font-size: 12px; font-weight: 800; line-height: 1.2;">No Spoiler</span>
+            <span style="display: block; font-size: 11px; font-weight: 600; color: #3C3747; margin-top: 2px;">4 sujets surveillés sur x.com</span>
+          </span>
+        </div>
+      </div>
+      <div style="font-size: 11px; font-weight: 600; line-height: 1.4; color: #536471;">Information seulement. Les actions vivent dans le popup.</div>
+    </div>
+
+    <div style="border: 2px solid #141218; border-radius: 16px; background: #FFF1F3; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #A81B2F;">Moteur injoignable — l'état qui compte</div>
+      <div style="flex-grow: 1; display: flex; align-items: flex-end;">
+        <div style="display: inline-flex; align-items: center; gap: 10px; padding: 9px 11px 9px 12px; border: 2px solid #141218; border-radius: 18px; background: #FF3D5A; box-shadow: 4px 4px 0 #141218;">
+          <span style="display: block;">
+            <span style="display: block; font-size: 12px; font-weight: 800; line-height: 1.2;">Moteur injoignable</span>
+            <span style="display: block; font-size: 11px; font-weight: 700; margin-top: 2px;">Rien n'est filtré</span>
+          </span>
+          <button type="button" style="height: 32px; padding: 0 12px; border: 2px solid #141218; border-radius: 10px; background: #FBF7F0; font-family: 'Manrope', sans-serif; font-size: 11px; font-weight: 800; color: #141218; cursor: pointer; flex-shrink: 0;">Réessayer</button>
+        </div>
+      </div>
+      <div style="font-size: 11px; font-weight: 600; line-height: 1.4; color: #A81B2F;">Ne se replie pas. Reste déplié tant que le moteur ne répond pas.</div>
+    </div>
+
+  </div>
+
+  <div style="border: 2px dashed #C9C1B2; border-radius: 12px; padding: 10px 13px;">
+    <div style="font-size: 11px; font-weight: 700; line-height: 1.45; color: #3C3747;">Interrupteur sur « off », ou watchlist vide : aucune pastille. L'extension ne se signale pas quand elle ne fait rien.</div>
+  </div>
+
+</div>
+</div>
+</figure>
+</div>
+</section>
+<section id="identity">
+<h2>Identité</h2>
+<div class="row">
+<figure class="board" id="logos">
+<figcaption><b>Le disque filé</b><span>Ticket #12. Marque retenue, tailles du manifeste, règles d&#x27;usage.</span></figcaption>
+<div class="frame">
+<div style="width: 1140px; height: 540px; box-sizing: border-box; background: #FBF7F0; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px;">
+
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <span style="border: 2px solid #141218; border-radius: 999px; background: #00C2A8; font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; padding: 3px 10px;">Retenu</span>
+    <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: #5C5668;">Direction C · le disque filé — écartées : l'œil barré (générique), la bulle caviardée</span>
+    <span style="flex-grow: 1; height: 2px; background: #E4DDD0;"></span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; flex-grow: 1;">
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+
+      <div style="display: flex; align-items: flex-start; gap: 16px;">
+        <div style="width: 168px; height: 168px; flex-shrink: 0; border: 3px solid #141218; border-radius: 38px; background: #FF3D5A; box-shadow: 6px 6px 0 #141218; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+          <svg width="104" height="104" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="49" cy="32" r="17" fill="#141218" opacity="0.25"></circle>
+            <circle cx="39" cy="32" r="17" fill="#141218" opacity="0.5"></circle>
+            <circle cx="26" cy="32" r="17" fill="#141218"></circle>
+          </svg>
+        </div>
+        <div style="padding-top: 6px;">
+          <div style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 21px; letter-spacing: -0.5px; line-height: 1.1;">Le disque<br>filé</div>
+          <div style="font-size: 11px; font-weight: 700; color: #5C5668; margin-top: 8px; line-height: 1.45;">Trois disques décalés en dégradé d'opacité. Le flou lui-même, pas sa métaphore.</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #E4DDD0; border-radius: 14px; background: #FFFFFF; padding: 10px 14px;">
+        <div style="width: 32px; height: 32px; flex-shrink: 0; border: 2px solid #141218; border-radius: 10px; background: #FF3D5A; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+          <svg width="20" height="20" viewBox="0 0 64 64" aria-hidden="true"><circle cx="49" cy="32" r="17" fill="#141218" opacity="0.25"></circle><circle cx="39" cy="32" r="17" fill="#141218" opacity="0.5"></circle><circle cx="26" cy="32" r="17" fill="#141218"></circle></svg>
+        </div>
+        <span style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 19px; letter-spacing: -0.6px;">No Spoiler</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; border: 2px solid #141218; border-radius: 14px; background: #141218; padding: 10px 14px;">
+        <div style="width: 32px; height: 32px; flex-shrink: 0; border: 2px solid #FBF7F0; border-radius: 10px; background: #141218; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+          <svg width="20" height="20" viewBox="0 0 64 64" aria-hidden="true"><circle cx="49" cy="32" r="17" fill="#FBF7F0" opacity="0.3"></circle><circle cx="39" cy="32" r="17" fill="#FBF7F0" opacity="0.55"></circle><circle cx="26" cy="32" r="17" fill="#FBF7F0"></circle></svg>
+        </div>
+        <span style="font-family: 'Bricolage Grotesque', 'Manrope', sans-serif; font-weight: 800; font-size: 19px; letter-spacing: -0.6px; color: #FBF7F0;">No Spoiler</span>
+      </div>
+
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+
+      <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: #5C5668;">Tailles du manifeste</div>
+
+      <div style="display: flex; align-items: flex-end; gap: 18px;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+          <div style="width: 128px; height: 128px; border: 2px solid #141218; border-radius: 30px; background: #FF3D5A; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <svg width="80" height="80" viewBox="0 0 64 64" aria-hidden="true"><circle cx="49" cy="32" r="17" fill="#141218" opacity="0.25"></circle><circle cx="39" cy="32" r="17" fill="#141218" opacity="0.5"></circle><circle cx="26" cy="32" r="17" fill="#141218"></circle></svg>
+          </div>
+          <span style="font-size: 10px; font-weight: 800; color: #5C5668;">128</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+          <div style="width: 48px; height: 48px; border: 2px solid #141218; border-radius: 13px; background: #FF3D5A; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><circle cx="49" cy="32" r="17" fill="#141218" opacity="0.25"></circle><circle cx="39" cy="32" r="17" fill="#141218" opacity="0.5"></circle><circle cx="26" cy="32" r="17" fill="#141218"></circle></svg>
+          </div>
+          <span style="font-size: 10px; font-weight: 800; color: #5C5668;">48</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+          <div style="width: 32px; height: 32px; border: 2px solid #141218; border-radius: 9px; background: #FF3D5A; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <svg width="20" height="20" viewBox="0 0 64 64" aria-hidden="true"><circle cx="46" cy="32" r="18" fill="#141218" opacity="0.35"></circle><circle cx="26" cy="32" r="18" fill="#141218"></circle></svg>
+          </div>
+          <span style="font-size: 10px; font-weight: 800; color: #5C5668;">32</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+          <div style="width: 16px; height: 16px; border: 1px solid #141218; border-radius: 5px; background: #FF3D5A; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <svg width="12" height="12" viewBox="0 0 64 64" aria-hidden="true"><circle cx="44" cy="32" r="20" fill="#141218" opacity="0.4"></circle><circle cx="25" cy="32" r="20" fill="#141218"></circle></svg>
+          </div>
+          <span style="font-size: 10px; font-weight: 800; color: #5C5668;">16</span>
+        </div>
+      </div>
+
+      <div style="border: 2px dashed #C9C1B2; border-radius: 14px; padding: 12px 14px;">
+        <div style="font-size: 11px; font-weight: 700; line-height: 1.5; color: #3C3747;">À 32 px et en dessous, le troisième disque disparaît : deux disques seulement, plus gros et plus écartés. Trois disques à cette taille virent à la bouillie grise.</div>
+      </div>
+
+      <div style="border: 2px solid #141218; border-radius: 14px; background: #FFFFFF; padding: 12px 14px;">
+        <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: #5C5668; margin-bottom: 6px;">Animation possible</div>
+        <div style="font-size: 11px; font-weight: 600; line-height: 1.5; color: #3C3747;">À la révélation d'un post, les trois disques se rassemblent en un seul, net. Le logo joue la fonction.</div>
+      </div>
+
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+
+      <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: #5C5668;">Règles d'usage</div>
+
+      <div style="border: 2px solid #141218; border-radius: 14px; background: #FFFFFF; padding: 12px 14px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 7px;">
+          <span style="width: 16px; height: 16px; border-radius: 5px; background: #FF3D5A; border: 2px solid #141218; flex-shrink: 0;"></span>
+          <span style="font-size: 12px; font-weight: 800;">Corail — pastille principale</span>
+        </div>
+        <div style="font-size: 11px; font-weight: 600; line-height: 1.45; color: #3C3747;">Icône du manifeste, en-tête du popup, toute apparition de marque.</div>
+      </div>
+
+      <div style="border: 2px solid #141218; border-radius: 14px; background: #FFFFFF; padding: 12px 14px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 7px;">
+          <span style="width: 16px; height: 16px; border-radius: 5px; background: #141218; flex-shrink: 0;"></span>
+          <span style="font-size: 12px; font-weight: 800;">Inverse crème sur encre</span>
+        </div>
+        <div style="font-size: 11px; font-weight: 600; line-height: 1.45; color: #3C3747;">Mode sombre de X, et tout fond foncé.</div>
+      </div>
+
+      <div style="border: 2px solid #C42038; border-radius: 14px; background: #FFF1F3; padding: 12px 14px;">
+        <div style="font-size: 12px; font-weight: 800; color: #A81B2F; margin-bottom: 7px;">Jamais sur jaune</div>
+        <div style="font-size: 11px; font-weight: 600; line-height: 1.45; color: #A81B2F;">Le jaune #FFD84D signale le moteur lent et l'analyse en cours. Un logo jaune rendrait la marque indiscernable d'un état.</div>
+      </div>
+
+      <div style="border: 2px solid #E4DDD0; border-radius: 14px; background: #FFFFFF; padding: 12px 14px;">
+        <div style="font-size: 12px; font-weight: 800; margin-bottom: 7px;">Turquoise : l'exception</div>
+        <div style="font-size: 11px; font-weight: 600; line-height: 1.45; color: #3C3747;">Seulement dans la pastille du fil, où la couleur porte l'état et le glyphe porte la marque.</div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+</div>
+</figure>
+</div>
+</section>
+</div>
+</body>
+</html>
