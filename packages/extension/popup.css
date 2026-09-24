@@ -1,0 +1,583 @@
+/*
+ * The popup is the extension's own page, so the tokens from
+ * `docs/design-system.md` go on `:root` here as written. The content script's
+ * styles may not do that — there `:root` is X's.
+ */
+
+/*
+ * Self-hosted: an extension page should make no network request to render, and
+ * it must work offline. Both families are variable, so one file covers every
+ * weight the type scale asks for. Licensed under the SIL Open Font License —
+ * see fonts/README.md.
+ */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/bricolage-grotesque-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/bricolage-grotesque-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/manrope-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/manrope-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  /* Ground */
+  --ns-paper:        #FBF7F0;
+  --ns-surface:      #FFFFFF;
+  --ns-sunken:       #EFEAE0;
+  --ns-rule:         #E4DDD0;
+  --ns-rule-dashed:  #C9C1B2;
+
+  /* Ink */
+  --ns-ink:          #141218;
+  --ns-ink-2:        #3C3747;
+  --ns-ink-3:        #5C5668;
+  --ns-ink-muted:    #9A94A6;
+
+  /* Accents — meaning, not decoration */
+  --ns-coral:        #FF3D5A;
+  --ns-teal:         #00C2A8;
+  --ns-amber:        #FFD84D;
+
+  /* Accent text, for use ON paper/surface */
+  --ns-teal-text:    #0A7263;
+  --ns-teal-text-hi: #075548;
+  --ns-coral-text:   #A81B2F;
+  --ns-coral-line:   #C42038;
+  --ns-coral-wash:   #FFF1F3;
+
+  /* Type */
+  --ns-font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --ns-font-ui:      "Manrope", system-ui, sans-serif;
+
+  /* Radii */
+  --ns-r-xs:   9px;
+  --ns-r-s:   12px;
+  --ns-r-m:   14px;
+  --ns-r-l:   16px;
+  --ns-r-xl:  18px;
+  --ns-r-pill: 999px;
+
+  /* Structure */
+  --ns-border:       2px solid var(--ns-ink);
+  --ns-shadow:       3px 3px 0 var(--ns-ink);
+  --ns-shadow-hi:    4px 4px 0 var(--ns-ink);
+  --ns-shadow-hero:  6px 6px 0 var(--ns-ink);
+
+  /* Motion */
+  --ns-t-state:  120ms ease-out;
+  --ns-t-expand: 160ms ease-out;
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/*
+ * The UA rule for `[hidden]` is `display: none`, which any `display` set by
+ * class would otherwise win against — several of the sections below are flex
+ * containers, and the popup hides them by the attribute.
+ */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  width: 380px;
+  min-height: 460px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ns-paper);
+  color: var(--ns-ink);
+  font-family: var(--ns-font-ui);
+  font-size: 13px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ns-ink);
+  outline-offset: 2px;
+}
+
+/* Header band */
+
+.ns-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px 14px;
+  border-bottom: var(--ns-border);
+  background: var(--ns-surface);
+}
+
+.ns-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border: var(--ns-border);
+  border-radius: 11px;
+  background: var(--ns-coral);
+}
+
+.ns-identity {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.ns-wordmark {
+  margin: 0;
+  font-family: var(--ns-font-display);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  /* The Identity section's wordmark tracking, not display-s's -0.4px. */
+  letter-spacing: -0.5px;
+}
+
+.ns-protection {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ns-teal-text);
+}
+
+.ns-protection[data-state="stopped"] {
+  color: var(--ns-coral-text);
+}
+
+/*
+ * The knob changes colour with the track, so the state survives for anyone who
+ * cannot tell teal from sunken; `aria-pressed` and the line beside it carry it
+ * for anyone who cannot see either.
+ */
+.ns-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 62px;
+  height: 36px;
+  padding: 0;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-pill);
+  background: var(--ns-sunken);
+  cursor: pointer;
+  transition: background var(--ns-t-state);
+}
+
+.ns-toggle[aria-pressed="true"] {
+  background: var(--ns-teal);
+}
+
+/*
+ * Muted, but the knob keeps the position the stored flag puts it in, so the
+ * control never contradicts `aria-pressed`. The line beside it says why it is
+ * not doing anything.
+ */
+.ns-toggle:disabled,
+.ns-toggle:disabled[aria-pressed="true"] {
+  border-color: var(--ns-ink-muted);
+  background: var(--ns-sunken);
+  cursor: default;
+}
+
+.ns-toggle:disabled[aria-pressed="true"] .ns-toggle-knob {
+  background: var(--ns-ink-muted);
+}
+
+.ns-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--ns-r-pill);
+  background: var(--ns-ink-muted);
+  transition: left var(--ns-t-state), background var(--ns-t-state);
+}
+
+.ns-toggle[aria-pressed="true"] .ns-toggle-knob {
+  left: 29px;
+  background: var(--ns-ink);
+}
+
+/* Body */
+
+.ns-main {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-height: 0;
+  padding: 20px 20px 24px;
+  gap: 20px;
+}
+
+.ns-first-run {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.ns-hero {
+  margin: 0;
+  font-family: var(--ns-font-display);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.9px;
+}
+
+.ns-hero-mark {
+  padding: 0 7px;
+  border-radius: 7px;
+  background: var(--ns-coral);
+}
+
+.ns-lede {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--ns-ink-2);
+}
+
+.ns-label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--ns-ink-3);
+}
+
+/* Add form */
+
+.ns-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.ns-input {
+  flex-grow: 1;
+  min-width: 0;
+  height: 46px;
+  padding: 0 14px;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-m);
+  background: var(--ns-surface);
+  color: var(--ns-ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ns-input[aria-invalid="true"] {
+  border-color: var(--ns-coral-line);
+  background: var(--ns-coral-wash);
+}
+
+.ns-input::placeholder {
+  color: var(--ns-ink-3);
+  font-weight: 500;
+}
+
+.ns-add-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-m);
+  background: var(--ns-amber);
+  box-shadow: var(--ns-shadow);
+  color: var(--ns-ink);
+  cursor: pointer;
+  transition: transform var(--ns-t-state), box-shadow var(--ns-t-state);
+}
+
+.ns-add-button:active {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+
+/*
+ * The stroke icon and the wording carry the error alongside the colour, and
+ * `role="alert"` announces it the moment it appears.
+ */
+.ns-field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ns-coral-text);
+}
+
+.ns-field-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Advisory */
+
+.ns-advisory {
+  margin: 0;
+  padding: 14px 16px;
+  border: 2px dashed var(--ns-rule-dashed);
+  border-radius: var(--ns-r-m);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ns-ink-2);
+}
+
+/* Watchlist */
+
+.ns-list-section {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-height: 0;
+  gap: 12px;
+}
+
+.ns-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ns-section-header .ns-label {
+  margin: 0;
+}
+
+.ns-count {
+  padding: 4px 9px;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-pill);
+  background: var(--ns-coral);
+  color: var(--ns-ink);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.7px;
+}
+
+.ns-rule {
+  flex-grow: 1;
+  height: 2px;
+  background: var(--ns-rule);
+}
+
+.ns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.ns-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 11px 11px 15px;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-m);
+  background: var(--ns-surface);
+}
+
+.ns-row-label {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ns-row-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-xs);
+  background: var(--ns-paper);
+  color: var(--ns-ink);
+  cursor: pointer;
+}
+
+.ns-row-remove:hover {
+  background: var(--ns-sunken);
+}
+
+/* Engine */
+
+.ns-engine {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ns-engine .ns-label,
+.ns-engine .ns-lede {
+  margin: 0;
+}
+
+.ns-primary {
+  height: 52px;
+  margin-top: 2px;
+  border: var(--ns-border);
+  border-radius: var(--ns-r-l);
+  background: var(--ns-teal);
+  box-shadow: var(--ns-shadow-hi);
+  color: var(--ns-ink);
+  font-family: var(--ns-font-display);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--ns-t-state), box-shadow var(--ns-t-state);
+}
+
+.ns-primary:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+}
+
+/* Footer */
+
+.ns-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: var(--ns-border);
+  background: var(--ns-surface);
+}
+
+/* Never the only carrier of the state — the words beside it say the same. */
+.ns-status-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--ns-ink);
+  border-radius: var(--ns-r-pill);
+  background: var(--ns-ink-muted);
+}
+
+.ns-status-dot[data-state="ok"] {
+  background: var(--ns-teal);
+}
+
+.ns-status-dot[data-state="slow"] {
+  background: var(--ns-amber);
+}
+
+.ns-status-dot[data-state="down"] {
+  background: var(--ns-coral);
+}
+
+.ns-status-text {
+  flex-grow: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ns-ink-2);
+}
+
+/*
+ * A 32px target, the floor for a control nested in an already-large row. The
+ * underline stays on the text rather than on the button box, which would
+ * otherwise sit well below it.
+ */
+.ns-footer-action {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--ns-teal-text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ns-footer-action:hover {
+  color: var(--ns-teal-text-hi);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ns-toggle,
+  .ns-toggle-knob,
+  .ns-add-button,
+  .ns-primary {
+    transition: none;
+  }
+  .ns-add-button:active {
+    transform: none;
+    box-shadow: var(--ns-shadow);
+  }
+  .ns-primary:active {
+    transform: none;
+    box-shadow: var(--ns-shadow-hi);
+  }
+}

@@ -114,6 +114,30 @@ describe("POST /judge", () => {
   });
 });
 
+describe("GET /health", () => {
+  it("answers without ever touching the judgment client, so it costs nothing", async () => {
+    const systemOne = vi.fn();
+    const app = createApp(makeClient(systemOne));
+
+    const res = await request(app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: "ok" });
+    expect(systemOne).not.toHaveBeenCalled();
+  });
+
+  it("stays cheap however many times it is called", async () => {
+    const systemOne = vi.fn();
+    const app = createApp(makeClient(systemOne));
+
+    for (let i = 0; i < 5; i += 1) {
+      await request(app).get("/health");
+    }
+
+    expect(systemOne).not.toHaveBeenCalled();
+  });
+});
+
 describe("resolveListenOptions", () => {
   it("defaults to loopback when HOST is unset, so a local sandbox isn't exposed to the LAN", () => {
     expect(resolveListenOptions({})).toEqual({ port: 3210, host: "127.0.0.1" });

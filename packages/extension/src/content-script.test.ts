@@ -3,8 +3,12 @@ import type { JudgeResponse } from "@no-spoiler/shared";
 
 const SHIELD_SELECTOR = ".no-spoiler-shield";
 const REVEAL_SELECTOR = ".no-spoiler-reveal";
+const PENDING_SELECTOR = ".no-spoiler-pending";
+const BADGE_SELECTOR = ".no-spoiler-badge";
+const PILL_SELECTOR = ".no-spoiler-pill";
 const LEGACY_BLUR_CLASS = "no-spoiler-blur";
 const DEBOUNCE_MS = 300;
+const TWEET_SELECTOR = 'article[data-testid="tweet"]';
 
 // X's own article classes. React rewrites this attribute wholesale from its
 // props whenever it re-renders the article (hover, like/reply state, ...).
@@ -53,26 +57,60 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+interface Page {
+  /** Writes to storage and notifies the page the way the popup would. */
+  store(patch: Record<string, unknown>): Promise<void>;
+}
+
 /**
  * Loads a fresh content-script module instance against a fresh <body>, so the
  * observer from a previous test can't see the nodes this one appends.
  */
-async function setupPage(sendMessage: (message: unknown) => Promise<unknown>): Promise<void> {
+async function setupPage(
+  sendMessage: (message: unknown) => Promise<unknown>,
+  stored: Record<string, unknown> = { watchlist: ["Lakers vs Celtics 9/19"] },
+): Promise<Page> {
   document.documentElement.replaceChild(document.createElement("body"), document.body);
   document.head.innerHTML = "";
   vi.resetModules();
+
+  const state = { ...stored };
+  type ChangeListener = (changes: Record<string, unknown>, areaName: string) => void;
+  const listeners: ChangeListener[] = [];
   vi.stubGlobal("chrome", {
     storage: {
       local: {
-        get: () => Promise.resolve({ watchlist: ["Lakers vs Celtics 9/19"] }),
-        set: () => Promise.resolve(),
+        get: (keys: string[]) => {
+          const result: Record<string, unknown> = {};
+          for (const key of keys) {
+            if (key in state) result[key] = state[key];
+          }
+          return Promise.resolve(result);
+        },
+        set: (items: Record<string, unknown>) => {
+          Object.assign(state, items);
+          return Promise.resolve();
+        },
       },
-      onChanged: { addListener: () => undefined },
+      onChanged: {
+        addListener: (listener: ChangeListener) => listeners.push(listener),
+      },
     },
     runtime: { sendMessage },
   });
   await import("./content-script.js");
   await wait(0);
+
+  return {
+    async store(patch) {
+      Object.assign(state, patch);
+      const changes = Object.fromEntries(
+        Object.entries(patch).map(([key, newValue]) => [key, { newValue }]),
+      );
+      for (const listener of listeners) listener(changes, "local");
+      await wait(0);
+    },
+  };
 }
 
 function appendTweets(...html: string[]): void {
@@ -90,18 +128,34 @@ async function settle(): Promise<void> {
   await wait(0);
 }
 
+/**
+ * A judge response the test settles by hand, so it can look at the page while
+ * a verdict is still outstanding.
+ */
+function deferredVerdict(): {
+  respond: (response: JudgeResponse) => void;
+  sendMessage: ReturnType<typeof vi.fn>;
+} {
+  let respond!: (response: JudgeResponse) => void;
+  const pending = new Promise<JudgeResponse>((resolve) => {
+    respond = resolve;
+  });
+  return { respond, sendMessage: vi.fn().mockReturnValue(pending) };
+}
+
 async function setupSpoiler(id: string): Promise<{
   article: HTMLElement;
   sendMessage: ReturnType<typeof vi.fn>;
+  page: Page;
 }> {
   const response: JudgeResponse = { results: { [id]: true } };
   const sendMessage = vi.fn().mockResolvedValue(response);
-  await setupPage(sendMessage);
+  const page = await setupPage(sendMessage);
 
   appendTweets(tweetHtml(id, "erin", "Spoiler-y take."));
   await settle();
 
-  return { article: requireArticle(id), sendMessage };
+  return { article: requireArticle(id), sendMessage, page };
 }
 
 afterEach(() => {
@@ -284,5 +338,303 @@ describe("malformed tweet markup", () => {
     const promoted = requireArticle("promoted");
     expect(isHidden(promoted)).toBe(false);
     expect(promoted.querySelector(REVEAL_SELECTOR)).toBeNull();
+  });
+});
+
+describe("analysing state", () => {
+  it("says a freshly covered post is being analysed, before any verdict exists", async () => {
+    // The cover goes on optimistically the moment a post appears. Held here
+    // with an unresolved judge response, that is the whole state the user sees.
+    const { respond, sendMessage } = deferredVerdict();
+    await setupPage(sendMessage);
+
+    appendTweets(tweetHtml("4001", "dana", "Verdict still pending."));
+    await wait(0);
+
+    const article = requireArticle("4001");
+    expect(isHidden(article)).toBe(true);
+    const pending = article.querySelector(PENDING_SELECTOR);
+    expect(pending?.textContent).toMatch(/analysing/i);
+    expect(article.querySelector(REVEAL_SELECTOR)).toBeNull();
+
+    respond({ results: {} });
+  });
+
+  it("swaps the analysing indicator for the spoiler notice when the verdict says spoiler", async () => {
+    const { article } = await setupSpoiler("4002");
+
+    expect(article.querySelector(PENDING_SELECTOR)).toBeNull();
+    expect(article.querySelector(BADGE_SELECTOR)?.textContent).toMatch(/spoiler detected/i);
+  });
+
+  it("takes the cover off altogether when the verdict clears the post", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ results: { "4003": false } });
+    await setupPage(sendMessage);
+
+    appendTweets(tweetHtml("4003", "dana", "Nothing to see here."));
+    await wait(0);
+    expect(requireArticle("4003").querySelector(PENDING_SELECTOR)).not.toBeNull();
+
+    await settle();
+
+    expect(isHidden(requireArticle("4003"))).toBe(false);
+  });
+
+  it("keeps the analysing indicator inside the cover, where the backdrop filter leaves it sharp", async () => {
+    const { respond, sendMessage } = deferredVerdict();
+    await setupPage(sendMessage);
+
+    appendTweets(tweetHtml("4004", "dana", "Verdict still pending."));
+    await wait(0);
+
+    const article = requireArticle("4004");
+    expect(article.querySelector(PENDING_SELECTOR)?.closest(SHIELD_SELECTOR)).toBe(
+      article.querySelector(SHIELD_SELECTOR),
+    );
+
+    respond({ results: {} });
+  });
+});
+
+describe("spoiler notice", () => {
+  it("says plainly that the post matched the watchlist", async () => {
+    const { article } = await setupSpoiler("4005");
+
+    const shield = article.querySelector(SHIELD_SELECTOR);
+    expect(shield?.textContent).toMatch(/watchlist/i);
+  });
+
+  it("reveals the post in one click", async () => {
+    const { article } = await setupSpoiler("4006");
+
+    const button = article.querySelector<HTMLButtonElement>(REVEAL_SELECTOR);
+    expect(button).not.toBeNull();
+    button?.click();
+
+    expect(isHidden(article)).toBe(false);
+  });
+});
+
+describe("injected styles", () => {
+  it("defines no custom property on the page root and prefixes every class it styles", async () => {
+    await setupPage(vi.fn().mockResolvedValue({ results: {} }));
+
+    // `:root` on X is X's own, so a custom property declared there leaks into
+    // their page. Ours are scoped to elements the extension owns.
+    const css = document.head.querySelector("style")?.textContent ?? "";
+    expect(css).not.toMatch(/:root/);
+    expect(css).toMatch(/--ns-/);
+
+    const classSelectors = css.match(/\.[A-Za-z][\w-]*/g) ?? [];
+    expect(classSelectors.length).toBeGreaterThan(0);
+    for (const selector of classSelectors) {
+      expect(selector).toMatch(/^\.no-spoiler-/);
+    }
+  });
+});
+
+describe("the master switch", () => {
+  it("covers nothing and judges nothing while the extension is switched off", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ results: { "6001": true } });
+    await setupPage(sendMessage, { watchlist: ["Lakers vs Celtics 9/19"], enabled: false });
+
+    appendTweets(tweetHtml("6001", "frank", "Spoiler-y take."));
+    await settle();
+
+    expect(isHidden(requireArticle("6001"))).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("uncovers posts already covered on the open tab the moment it goes off", async () => {
+    const { article, page } = await setupSpoiler("6002");
+    expect(isHidden(article)).toBe(true);
+
+    await page.store({ enabled: false });
+
+    expect(isHidden(article)).toBe(false);
+  });
+
+  it("covers the posts already on the tab again when it goes back on", async () => {
+    const { article, page } = await setupSpoiler("6003");
+    await page.store({ enabled: false });
+    expect(isHidden(article)).toBe(false);
+
+    await page.store({ enabled: true });
+    await settle();
+
+    expect(isHidden(requireArticle("6003"))).toBe(true);
+  });
+
+  it("keeps the judgment cache across an off/on cycle", async () => {
+    const { sendMessage, page } = await setupSpoiler("6004");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    await page.store({ enabled: false });
+    await page.store({ enabled: true });
+    await settle();
+
+    // The cache describes the page session, not the protection state.
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(isHidden(requireArticle("6004"))).toBe(true);
+  });
+
+  it("keeps a revealed post revealed across an off/on cycle", async () => {
+    const { article, page } = await setupSpoiler("6005");
+    article.querySelector<HTMLButtonElement>(REVEAL_SELECTOR)?.click();
+    expect(isHidden(article)).toBe(false);
+
+    await page.store({ enabled: false });
+    await page.store({ enabled: true });
+    await settle();
+
+    expect(isHidden(requireArticle("6005"))).toBe(false);
+  });
+});
+
+function pill(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(PILL_SELECTOR);
+}
+
+function requirePill(): HTMLElement {
+  const element = pill();
+  if (!element) throw new Error("no pill in the page");
+  return element;
+}
+
+describe("the in-page pill", () => {
+  const quietEngine = () => vi.fn().mockResolvedValue({ results: {} });
+
+  it("shows nothing at all while the watchlist is empty", async () => {
+    await setupPage(quietEngine(), { watchlist: [] });
+
+    expect(pill()).toBeNull();
+  });
+
+  it("shows nothing at all while the extension is switched off", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"], enabled: false });
+
+    expect(pill()).toBeNull();
+  });
+
+  it("rests quietly while the engine is answering, saying how many topics are watched", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3", "Ligue 1"] });
+
+    expect(requirePill().dataset.state).toBe("resting");
+    expect(requirePill().textContent).toContain("2 topics");
+  });
+
+  it("counts one topic in the singular", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    expect(requirePill().textContent).toContain("1 topic watched");
+  });
+
+  it("lives outside the post subtree, where X's re-renders cannot reach it", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    expect(requirePill().closest(TWEET_SELECTOR)).toBeNull();
+    expect(requirePill().parentElement).toBe(document.body);
+  });
+
+  it("carries no actions — those all live in the popup", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    expect(requirePill().querySelectorAll("button, a, input, select, textarea")).toHaveLength(0);
+  });
+
+  it("carries the mark, so the pill is recognisably this extension", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    // The design system's one sanctioned exception: in the pill the fill takes
+    // the state colour and the glyph carries the brand.
+    const discs = requirePill().querySelectorAll("svg circle");
+    expect(discs).toHaveLength(2);
+  });
+
+  it("announces its state rather than leaving it to colour", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    expect(requirePill().getAttribute("role")).toBe("status");
+    expect(requirePill().textContent).toMatch(/no spoiler/i);
+  });
+
+  it("turns loud when a judgment attempt fails, and says nothing is being filtered", async () => {
+    await setupPage(vi.fn().mockResolvedValue({ error: true }), {
+      watchlist: ["Dune 3"],
+    });
+
+    appendTweets(tweetHtml("7001", "gina", "Anything at all."));
+    await settle();
+
+    expect(requirePill().dataset.state).toBe("unreachable");
+    expect(requirePill().textContent).toMatch(/nothing is being filtered/i);
+  });
+
+  it("turns loud when the judge message itself rejects", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await setupPage(vi.fn().mockRejectedValue(new Error("service worker asleep")), {
+      watchlist: ["Dune 3"],
+    });
+
+    appendTweets(tweetHtml("7002", "gina", "Anything at all."));
+    await settle();
+
+    expect(requirePill().dataset.state).toBe("unreachable");
+  });
+
+  it("stays loud until the engine answers again, then goes quiet", async () => {
+    const sendMessage = vi
+      .fn()
+      .mockResolvedValueOnce({ error: true })
+      .mockResolvedValueOnce({ results: { "7004": false } });
+    await setupPage(sendMessage, { watchlist: ["Dune 3"] });
+
+    appendTweets(tweetHtml("7003", "gina", "First batch."));
+    await settle();
+    expect(requirePill().dataset.state).toBe("unreachable");
+
+    appendTweets(tweetHtml("7004", "gina", "Second batch."));
+    await settle();
+
+    expect(requirePill().dataset.state).toBe("resting");
+  });
+
+  it("comes back if X's in-app navigation takes it out of the page", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+    requirePill().remove();
+
+    appendTweets(tweetHtml("7005", "gina", "Navigation landed."));
+    await wait(0);
+
+    expect(pill()).not.toBeNull();
+  });
+
+  it("goes when the switch goes off, and returns when it comes back on", async () => {
+    const page = await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    await page.store({ enabled: false });
+    expect(pill()).toBeNull();
+
+    await page.store({ enabled: true });
+    expect(pill()).not.toBeNull();
+  });
+
+  it("keeps up with the watchlist while the tab is open", async () => {
+    const page = await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    await page.store({ watchlist: ["Dune 3", "Ligue 1", "Severance S3"] });
+
+    expect(requirePill().textContent).toContain("3 topics");
+  });
+
+  it("expands on hover rather than shouting the detail at rest", async () => {
+    await setupPage(quietEngine(), { watchlist: ["Dune 3"] });
+
+    const css = document.head.querySelector("style")?.textContent ?? "";
+    expect(css).toMatch(/\.no-spoiler-pill:hover[^{]*\.no-spoiler-pill-detail/);
+    // The alarm state depends on neither a hover nor a transition having run.
+    expect(css).toMatch(
+      /\.no-spoiler-pill\[data-state="unreachable"\][^{]*\.no-spoiler-pill-detail\s*\{[^}]*transition:\s*none/,
+    );
   });
 });

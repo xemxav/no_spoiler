@@ -2,15 +2,153 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>No Spoiler Watchlist</title>
+    <title>No Spoiler</title>
+    <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>Watchlist</h1>
-    <form id="add-form">
-      <input id="topic-input" type="text" placeholder="Add a topic to avoid" autocomplete="off" />
-      <button type="submit">Add</button>
-    </form>
-    <ul id="topic-list"></ul>
+    <header class="ns-header">
+      <span class="ns-tile" aria-hidden="true">
+        <!-- Two discs, not three: the glyph renders at 21px, and the design
+             system drops the third disc at 32px and below. -->
+        <svg viewBox="0 0 64 64" width="21" height="21">
+          <circle cx="44" cy="32" r="19" fill="#141218" opacity="0.35" />
+          <circle cx="26" cy="32" r="19" fill="#141218" />
+        </svg>
+      </span>
+      <div class="ns-identity">
+        <h1 class="ns-wordmark">No Spoiler</h1>
+        <p class="ns-protection" id="protection-state"></p>
+      </div>
+      <button
+        class="ns-toggle"
+        id="enabled-toggle"
+        type="button"
+        aria-label="Protection"
+        aria-pressed="true"
+        aria-describedby="protection-state"
+      >
+        <span class="ns-toggle-knob" aria-hidden="true"></span>
+      </button>
+    </header>
+
+    <main class="ns-main">
+      <section class="ns-first-run" id="first-run" hidden>
+        <p class="ns-hero">Tell us what you <span class="ns-hero-mark">don't</span> want to see.</p>
+        <p class="ns-lede">
+          Posts about your topics are covered before you have time to read them. Nothing is
+          deleted — you can always reveal.
+        </p>
+      </section>
+
+      <form class="ns-add" id="add-form">
+        <label class="ns-label" for="topic-input">Add a topic</label>
+        <div class="ns-add-row">
+          <input
+            class="ns-input"
+            id="topic-input"
+            type="text"
+            placeholder="Dune 3, the cup final, the election…"
+            autocomplete="off"
+          />
+          <button class="ns-add-button" type="submit" aria-label="Add topic">
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          </button>
+        </div>
+        <p class="ns-field-error" id="topic-error" role="alert" hidden>
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v5" />
+            <path d="M12 16.5v.01" />
+          </svg>
+          <span id="topic-error-text"></span>
+        </p>
+      </form>
+
+      <p class="ns-advisory" id="idle-note" hidden>
+        While your list is empty the extension analyses nothing and leaves your feed alone.
+      </p>
+
+      <section class="ns-list-section" id="list-section" hidden>
+        <div class="ns-section-header">
+          <h2 class="ns-label">My watchlist</h2>
+          <span class="ns-count" id="topic-count">0</span>
+          <span class="ns-rule" aria-hidden="true"></span>
+        </div>
+        <ul class="ns-list" id="topic-list"></ul>
+      </section>
+
+      <section class="ns-engine" id="engine-panel" hidden>
+        <h2 class="ns-label">Analysis engine</h2>
+        <p class="ns-lede">
+          This is the service that decides whether a post is a spoiler. Without it nothing is
+          analysed and your feed renders untouched.
+        </p>
+        <label class="ns-label" for="backend-url">Address</label>
+        <input
+          class="ns-input"
+          id="backend-url"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p class="ns-field-error" id="backend-error" role="alert" hidden>
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v5" />
+            <path d="M12 16.5v.01" />
+          </svg>
+          <span id="backend-error-text"></span>
+        </p>
+        <button class="ns-primary" id="engine-test" type="button">Test connection</button>
+      </section>
+    </main>
+
+    <footer class="ns-footer">
+      <span class="ns-status-dot" id="engine-dot" data-state="checking" aria-hidden="true"></span>
+      <span class="ns-status-text" id="engine-status">Checking the engine…</span>
+      <button
+        class="ns-footer-action"
+        id="engine-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="engine-panel"
+      >
+        Engine
+      </button>
+    </footer>
+
     <script type="module" src="popup.js"></script>
   </body>
 </html>

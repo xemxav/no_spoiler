@@ -1,0 +1,5 @@
+<!-- The blurred disc, reduced to two for 32px and below. Geometry: docs/design-system.md, "Identity". -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="No Spoiler">
+  <circle cx="44" cy="32" r="19" fill="#141218" opacity="0.35" />
+  <circle cx="26" cy="32" r="19" fill="#141218" />
+</svg>
