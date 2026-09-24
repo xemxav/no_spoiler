@@ -85,9 +85,13 @@ BACKEND_URL=https://no-spoiler-production.up.railway.app \
 pnpm --filter @no-spoiler/extension build
 ```
 
-Then load `packages/extension/dist/` as an unpacked extension. Unset, the build
-falls back to `http://localhost:3210`, i.e. the local sandbox. (Sandbox worktrees on a non-default port should pass
-`BACKEND_URL=http://localhost:<that port>`.)
+Then load `packages/extension/dist/` as an unpacked extension. A `BACKEND_URL` set
+in the shell always wins. Unset, the build reads `BACKEND_URL` from the `.env` at
+the worktree root, which `sandbox prepare` writes, so a sandbox on any port
+(`pnpm build`, or the watch build `sandbox up` starts) targets its own backend
+with nothing passed by hand. With no `.env` either, it falls back to
+`http://localhost:3210`. For a localhost address, `dist/manifest.json` grants
+that one origin in place of the source manifest's `http://localhost:3210/*`.
 
 `manifest.json` already lists `https://*.up.railway.app/*` in `host_permissions`,
 so a generated Railway domain works as-is. **A custom domain must be added to

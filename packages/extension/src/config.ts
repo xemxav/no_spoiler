@@ -1,6 +1,6 @@
 /**
- * Build-time config, injected by esbuild `--define` (see this package's
- * `build`/`dev` scripts, which read the `BACKEND_URL` environment variable).
+ * Build-time config, injected by esbuild `define` (see `scripts/build.mjs`,
+ * which reads `BACKEND_URL` from the shell, else from the worktree's `.env`).
  * It defaults to the local sandbox backend; point it at the deployed Railway
  * URL to build against that instead.
  *

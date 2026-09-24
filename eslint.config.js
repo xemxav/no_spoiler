@@ -12,7 +12,7 @@ export default tseslint.config(
     // Build-time scripts run under Node, not in a browser or a service worker.
     files: ["**/scripts/*.mjs"],
     languageOptions: {
-      globals: { Buffer: "readonly", process: "readonly" },
+      globals: { Buffer: "readonly", console: "readonly", process: "readonly" },
     },
   },
 );
